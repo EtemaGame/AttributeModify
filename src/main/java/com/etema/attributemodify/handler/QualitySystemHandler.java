@@ -1,5 +1,8 @@
-package com.etema.attributemodify;
+package com.etema.attributemodify.handler;
 
+import com.etema.attributemodify.AttributeModify;
+import com.etema.attributemodify.ItemAttributeDataManager;
+import com.etema.attributemodify.integration.ApotheosisIntegration;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonPrimitive;
 import net.minecraft.nbt.CompoundTag;

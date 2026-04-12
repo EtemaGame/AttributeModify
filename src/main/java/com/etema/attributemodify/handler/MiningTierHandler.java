@@ -1,8 +1,10 @@
-package com.etema.attributemodify;
+package com.etema.attributemodify.handler;
 
+import com.etema.attributemodify.AttributeModify;
+import com.etema.attributemodify.ItemAttributeDataManager;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.TieredItem;
 import net.minecraft.world.item.Tier;
+import net.minecraft.world.item.TieredItem;
 import net.minecraft.world.item.Tiers;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.common.TierSortingRegistry;
@@ -80,9 +82,7 @@ public class MiningTierHandler {
             case "netherite" -> Tiers.NETHERITE;
             case "gold", "golden" -> Tiers.GOLD;
             default -> {
-                if (AttributeModify.DEBUG_MODE) {
-                    AttributeModify.LOGGER.warn("Unknown mining tier '{}', ignoring", tierName);
-                }
+                AttributeModify.LOGGER.warn("Unknown mining tier '{}', ignoring", tierName);
                 yield null;
             }
         };

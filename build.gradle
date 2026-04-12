@@ -60,30 +60,15 @@ minecraft {
     }
 }
 
-sourceSets.main.resources { srcDir layout.buildDirectory.dir('generated/resources') }
-
-
-sourceSets {
-    test {
-        java.setSrcDirs([])
-        resources.setSrcDirs([])
-    }
-}
 repositories {
     maven { url = 'https://maven.minecraftforge.net' }
-    maven {
-        url = "https://maven.theillusivec4.top/"
-    }
-    maven {
-        url = "https://maven.shadowsoffire.dev/releases"
-    }
+    maven { url = "https://maven.theillusivec4.top/" }
+    maven { url = "https://maven.shadowsoffire.dev/releases" }
     mavenCentral()
     google()
     maven {
         url = "https://cursemaven.com"
-        content {
-            includeGroup "curse.maven"
-        }
+        content { includeGroup "curse.maven" }
     }
 }
 
@@ -91,13 +76,17 @@ dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
     
     compileOnly("top.theillusivec4.curios:curios-forge:${curios_version}+${minecraft_version}:api")
-
     compileOnly("dev.shadowsoffire:Apotheosis:${apotheosis_version}")
-    
-    // Placebo is required by Apotheosis
     compileOnly("dev.shadowsoffire:Placebo:${placebo_version}")
 
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.0'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.0'
+
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+}
+
+test {
+    useJUnitPlatform()
 }
 
 mixin {

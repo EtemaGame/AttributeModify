@@ -3,6 +3,8 @@ package com.etema.attributemodify;
 import com.etema.attributemodify.durability.DurabilityMode;
 import com.etema.attributemodify.durability.DurabilityRule;
 import com.etema.attributemodify.durability.DurabilityHelper;
+import com.etema.attributemodify.handler.MiningTierHandler;
+import com.etema.attributemodify.integration.CuriosIntegration;
 import com.google.gson.*;
 import com.mojang.logging.LogUtils;
 import net.minecraft.resources.ResourceLocation;
@@ -76,7 +78,7 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
 
     public enum AttributeAction {
         ADD, // Añade modificadores encima de los vanilla (no los borra)
-        MODIFY, // Reemplaza los modificadores vanilla completamente
+        MODIFY, // Reemplaza modificadores originales preservando UUID, nombre y orden
         REMOVE; // Elimina el atributo por completo
 
         public static AttributeAction fromString(String actionName) {
@@ -89,9 +91,7 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
                 case "remove":
                     return REMOVE;
                 default:
-                    if (AttributeModify.DEBUG_MODE) {
-                        AttributeModify.LOGGER.warn("Unknown attribute action '{}' - defaulting to ADD", actionName);
-                    }
+                    LOGGER.warn("Unknown attribute action '{}' - defaulting to ADD", actionName);
                     return ADD;
             }
         }
@@ -341,11 +341,8 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
                     default:
                         return false;
                 }
-
             } catch (Exception e) {
-                if (AttributeModify.DEBUG_MODE) {
-                    LOGGER.warn("Error comparing NBT tag (op={}, path={}): {}", op, path, e.getMessage());
-                }
+                LOGGER.debug("Error comparing NBT tag (op={}, path={}): {}", op, path, e.getMessage());
                 return false;
             }
         }
@@ -369,9 +366,7 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
 
     private void applyDurabilityOverride(Item item, int durability, Set<String> triggers) {
         if (durability <= 0) {
-            if (AttributeModify.DEBUG_MODE) {
-                LOGGER.warn("Ignoring invalid durability {} for item {}", durability, getItemName(item));
-            }
+            LOGGER.warn("Ignoring invalid durability {} for item {}", durability, getItemName(item));
             return;
         }
 
@@ -390,34 +385,25 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
         if (rule.mode() == com.etema.attributemodify.durability.DurabilityMode.CUSTOM) {
             if (com.etema.attributemodify.durability.DurabilityHelper.isVanillaDamageableTarget(item)) {
                 durabilityRules.remove(item);
-                if (AttributeModify.DEBUG_MODE) {
-                    LOGGER.warn("Skipping durability {} for {} -> mode CUSTOM because the item is already vanilla damageable",
-                            rule.maxDurability(), getItemName(item));
-                }
+                LOGGER.debug("Skipping durability {} for {} -> mode CUSTOM because the item is already vanilla damageable",
+                        rule.maxDurability(), getItemName(item));
                 return;
             }
 
             if (!com.etema.attributemodify.durability.DurabilityHelper.isCustomDurabilitySupported(item)) {
                 durabilityRules.remove(item);
-                if (AttributeModify.DEBUG_MODE) {
-                    LOGGER.warn(
-                            "Skipping durability {} for {} -> mode CUSTOM because the item stacks to {}. CUSTOM durability currently requires max stack size 1",
+                LOGGER.debug("Skipping durability {} for {} -> mode CUSTOM because the item stacks to {}. Max stack size 1 required.",
                             rule.maxDurability(), getItemName(item), item.getDefaultInstance().getMaxStackSize());
-                }
                 return;
             }
             
             durabilityRules.put(item, rule);
-            if (AttributeModify.DEBUG_MODE) {
-                LOGGER.info("Registered durability {} for {} -> mode CUSTOM (triggers: {})",
+            LOGGER.debug("Registered durability {} for {} -> mode CUSTOM (triggers: {})",
                         rule.maxDurability(), getItemName(item), rule.hasTriggers() ? rule.triggers() : "none");
-            }
         } else if (rule.mode() == com.etema.attributemodify.durability.DurabilityMode.VANILLA_OVERRIDE) {
             int original = item.getMaxDamage(item.getDefaultInstance());
             if (original <= 0) {
-                if (AttributeModify.DEBUG_MODE) {
-                    LOGGER.warn("Skipping durability override for {} because it is not damageable", getItemName(item));
-                }
+                LOGGER.debug("Skipping durability override for {} because it is not damageable", getItemName(item));
                 durabilityRules.remove(item);
                 return;
             }
@@ -425,10 +411,8 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
             originalDurabilityValues.putIfAbsent(item, original);
             durabilityRules.put(item, rule);
 
-            if (AttributeModify.DEBUG_MODE) {
-                LOGGER.info("Registered virtual durability override {} for {} (Original: {})", 
-                    rule.maxDurability(), getItemName(item), original);
-            }
+            LOGGER.debug("Registered virtual durability override {} for {} (Original: {})", 
+                rule.maxDurability(), getItemName(item), original);
         }
     }
 
@@ -467,27 +451,24 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
         // Create summary line
         LOGGER.info("AttributeModify - Loaded {} attribute files.", loadedFiles);
 
-        if (AttributeModify.DEBUG_MODE) {
-            // Count total attribute entries for summary
-            int totalEntries = 0;
-            for (Map.Entry<Item, Map<EquipmentSlot, List<AttributeEntry>>> itemEntry : itemAttributes.entrySet()) {
-                for (List<AttributeEntry> entries : itemEntry.getValue().values()) {
-                    totalEntries += entries.size();
-                }
+        int totalEntries = 0;
+        for (Map.Entry<Item, Map<EquipmentSlot, List<AttributeEntry>>> itemEntry : itemAttributes.entrySet()) {
+            for (List<AttributeEntry> entries : itemEntry.getValue().values()) {
+                totalEntries += entries.size();
             }
-            int totalCuriosEntries = 0;
-            for (Map.Entry<Item, Map<String, List<AttributeEntry>>> itemEntry : curiosAttributes.entrySet()) {
-                for (List<AttributeEntry> entries : itemEntry.getValue().values()) {
-                    totalCuriosEntries += entries.size();
-                }
-            }
-
-            LOGGER.info(
-                    "  -> Details: {} items ({} attr), {} curios ({} attr), {} durability, {} quality, {} mining, {} decorative, {} deferred tags",
-                    itemAttributes.size(), totalEntries, curiosAttributes.size(), totalCuriosEntries,
-                    durabilityRules.size(), qualityConfigs.size(), miningOverrides.size(), decorativeItems.size(),
-                    deferredTagEntries.size());
         }
+        int totalCuriosEntries = 0;
+        for (Map.Entry<Item, Map<String, List<AttributeEntry>>> itemEntry : curiosAttributes.entrySet()) {
+            for (List<AttributeEntry> entries : itemEntry.getValue().values()) {
+                totalCuriosEntries += entries.size();
+            }
+        }
+
+        LOGGER.info(
+                "  -> Details: {} items ({} attr), {} curios ({} attr), {} durability, {} quality, {} mining, {} decorative, {} deferred tags",
+                itemAttributes.size(), totalEntries, curiosAttributes.size(), totalCuriosEntries,
+                durabilityRules.size(), qualityConfigs.size(), miningOverrides.size(), decorativeItems.size(),
+                deferredTagEntries.size());
     }
 
     /**
@@ -500,9 +481,7 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
             return;
         }
 
-        if (AttributeModify.DEBUG_MODE) {
-            LOGGER.info("Resolving {} deferred tag entries...", deferredTagEntries.size());
-        }
+        LOGGER.info("Resolving {} deferred tag entries...", deferredTagEntries.size());
         int resolved = 0;
 
         for (Map.Entry<String, JsonObject> deferred : deferredTagEntries) {
@@ -515,9 +494,7 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
                 ITag<Item> tag = ForgeRegistries.ITEMS.tags().getTag(tagKey);
 
                 if (tag.isEmpty()) {
-                    if (AttributeModify.DEBUG_MODE) {
-                        LOGGER.warn("Tag {} still not found or empty after deferred resolution", entryKey);
-                    }
+                    LOGGER.warn("Tag {} still not found or empty after deferred resolution", entryKey);
                     continue;
                 }
 
@@ -530,7 +507,7 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
             }
         }
 
-        if (AttributeModify.DEBUG_MODE && resolved > 0) {
+        if (resolved > 0) {
             LOGGER.info("Resolved {}/{} deferred tag entries", resolved, deferredTagEntries.size());
         }
         deferredTagEntries.clear();
@@ -550,10 +527,7 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
 
                     if (tag.isEmpty()) {
                         // Tags may not be loaded yet on first world load; defer for later resolution
-                        if (AttributeModify.DEBUG_MODE) {
-                            LOGGER.info("Tag {} not yet available, deferring for later resolution (from {})", entryKey,
-                                    location);
-                        }
+                        LOGGER.debug("Tag {} not yet available, deferring for resolution (from {})", entryKey, location);
                         deferredTagEntries.add(Map.entry(entryKey, tagData));
                         continue;
                     }
@@ -575,9 +549,7 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
                     continue;
                 }
 
-                if (AttributeModify.DEBUG_MODE) {
-                    LOGGER.debug("Processing item '{}' from {}", entryKey, location);
-                }
+                LOGGER.debug("Processing item '{}' from {}", entryKey, location);
                 JsonObject itemData = itemEntry.getValue().getAsJsonObject();
                 processItemAttributes(item, itemData);
             }
@@ -592,9 +564,7 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
         // For this instruction, we assume itemData is ready to be processed.
 
         if (itemData == null || itemData.size() == 0) {
-            if (AttributeModify.DEBUG_MODE) {
-                LOGGER.debug("No attribute data found for item {}", ForgeRegistries.ITEMS.getKey(item));
-            }
+            LOGGER.debug("No attribute data found for item {}", ForgeRegistries.ITEMS.getKey(item));
             return;
         }
 
@@ -662,9 +632,7 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
             try {
                 JsonElement durabilityElement = itemData.get("durability");
                 if (!durabilityElement.isJsonPrimitive() || !durabilityElement.getAsJsonPrimitive().isNumber()) {
-                    if (AttributeModify.DEBUG_MODE) {
-                        LOGGER.warn("Durability value for item {} is not a number", getItemName(item));
-                    }
+                    LOGGER.warn("Durability value for item {} is not a number", getItemName(item));
                 } else {
                     int durability = durabilityElement.getAsInt();
                     Set<String> durabilityTriggers = parseDurabilityTriggers(item, itemData);
@@ -690,9 +658,7 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
         if (autoStandard != null) {
             List<AttributeEntry> attributes = parseAttributeEntries(item, attributesArray, itemKey, autoStandard.getName());
             standardData.computeIfAbsent(autoStandard, k -> new ArrayList<>()).addAll(attributes);
-            if (AttributeModify.DEBUG_MODE) {
                 LOGGER.debug("Auto-detected standard slot '{}' for item {}", autoStandard.getName(), itemKey);
-            }
             return;
         }
 
@@ -700,9 +666,7 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
         if (autoCurio != null) {
             List<AttributeEntry> attributes = parseAttributeEntries(item, attributesArray, itemKey, autoCurio);
             curiosData.computeIfAbsent(autoCurio, k -> new ArrayList<>()).addAll(attributes);
-            if (AttributeModify.DEBUG_MODE) {
                 LOGGER.debug("Auto-detected Curios slot '{}' for item {}", autoCurio, itemKey);
-            }
             return;
         }
 
@@ -786,14 +750,17 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
                         int durability = attrObj.get("durability").getAsInt();
                         Set<String> durabilityTriggers = parseDurabilityTriggers(item, attrObj);
                         applyDurabilityOverride(item, durability, durabilityTriggers);
-                        if (AttributeModify.DEBUG_MODE) {
-                            LOGGER.debug("  -> Parsed durability override {} for item '{}' (from slot '{}')", 
-                                durability, itemKey, slotKey);
-                        }
+                        LOGGER.debug("  -> Parsed durability override {} for item '{}' (from slot '{}')", 
+                            durability, itemKey, slotKey);
                     } catch (Exception e) {
                         LOGGER.error("Error parsing durability in attribute list (item {} slot {}): {}", 
                             itemKey, slotKey, e.getMessage());
                     }
+                    continue;
+                }
+
+                if (!attrObj.has("attribute")) {
+                    LOGGER.error("Missing 'attribute' field in entry for item {} slot {}", itemKey, slotKey);
                     continue;
                 }
 
@@ -804,16 +771,12 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
                 Attribute attribute = ForgeRegistries.ATTRIBUTES.getValue(attrLocation);
 
                 if (attribute == null) {
-                    LOGGER.warn(
-                            "Attribute '{}' not found in registry (item '{}', slot '{}'). Check if the mod providing this attribute is installed.",
+                    LOGGER.warn("Attribute '{}' not found in registry (item '{}', slot '{}'). Check if the mod providing this attribute is installed.",
                             attributeId, itemKey, slotKey);
                     continue;
                 }
 
-                if (AttributeModify.DEBUG_MODE) {
-                    LOGGER.debug("  -> Parsed attribute '{}' action={} for item '{}' slot '{}'", attributeId, action,
-                            itemKey, slotKey);
-                }
+                LOGGER.debug("  -> Parsed attribute '{}' action={} for item '{}' slot '{}'", attributeId, action, itemKey, slotKey);
 
                 NbtCondition nbtCondition = null;
                 if (attrObj.has("nbt") && attrObj.get("nbt").isJsonObject()) {
@@ -831,6 +794,10 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
                 if (action == AttributeAction.REMOVE) {
                     entries.add(new AttributeEntry(attribute, null, action, nbtCondition));
                 } else {
+                    if (!attrObj.has("amount") && action != AttributeAction.REMOVE) {
+                        LOGGER.warn("Missing 'amount' for action {} on attribute {} (item {}, slot {})", action, attributeId, itemKey, slotKey);
+                    }
+
                     String attrSafe = attributeId
                             .replace("minecraft:", "")
                             .replace(":", "_")
@@ -846,7 +813,12 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
 
                     UUID uuid;
                     if (attrObj.has("uuid")) {
-                        uuid = UUID.fromString(attrObj.get("uuid").getAsString());
+                        try {
+                            uuid = UUID.fromString(attrObj.get("uuid").getAsString());
+                        } catch (Exception e) {
+                            uuid = UUID.nameUUIDFromBytes(modifierIdString.getBytes());
+                            LOGGER.error("Invalid UUID format '{}' for attribute {} (item {}). Using generated UUID.", attrObj.get("uuid").getAsString(), attributeId, itemKey);
+                        }
                     } else {
                         uuid = UUID.nameUUIDFromBytes(modifierIdString.getBytes());
                     }
@@ -1124,7 +1096,7 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
                 }
             }
 
-            overrides.add(new MiningOverride(speed, tier, MiningTierHandler.parseTier(tier), nbtCondition));
+            overrides.add(new MiningOverride(speed, tier, tier != null ? MiningTierHandler.parseTier(tier) : null, nbtCondition));
         }
 
         return overrides;

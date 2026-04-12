@@ -1,6 +1,7 @@
 package com.etema.attributemodify;
 
-// Removed: import com.etema.attributemodify.config.ConfigHandler;
+import com.etema.attributemodify.handler.*;
+import com.etema.attributemodify.integration.CuriosIntegration;
 import com.etema.attributemodify.network.NetworkHandler;
 import com.mojang.logging.LogUtils;
 import net.minecraftforge.common.MinecraftForge;
@@ -17,7 +18,6 @@ import org.slf4j.Logger;
 public class AttributeModify {
     public static final String MODID = "attributemodify";
     public static final Logger LOGGER = LogUtils.getLogger();
-    public static boolean DEBUG_MODE = true;
 
     public AttributeModify() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
@@ -31,10 +31,7 @@ public class AttributeModify {
         modEventBus.addListener(this::commonSetup);
 
         CuriosIntegration.initialize();
-
-        if (DEBUG_MODE) {
-            LOGGER.info("AttributeModify Initialized (Forge 1.20.1)");
-        }
+        LOGGER.info("AttributeModify Initialized (Forge 1.20.1)");
     }
 
     private void commonSetup(FMLCommonSetupEvent event) {

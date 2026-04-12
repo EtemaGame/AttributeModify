@@ -24,10 +24,8 @@ public class NetworkEventHandler {
                     sendDataToPlayer(serverPlayer);
                 });
             } else {
-                if (AttributeModify.DEBUG_MODE) {
-                    AttributeModify.LOGGER.warn("Server was not available for player {} during login sync",
-                            serverPlayer.getName().getString());
-                }
+                AttributeModify.LOGGER.warn("Server was not available for player {} during login sync",
+                        serverPlayer.getName().getString());
             }
         }
     }
@@ -82,10 +80,8 @@ public class NetworkEventHandler {
             }
 
         } catch (Exception e) {
-            if (AttributeModify.DEBUG_MODE) {
-                AttributeModify.LOGGER.error("Failed to send attribute data to player {}: {}",
-                        player.getName().getString(), e.getMessage(), e);
-            }
+            AttributeModify.LOGGER.error("Failed to send attribute data to player {}: {}",
+                    player.getName().getString(), e.getMessage(), e);
         }
     }
 }

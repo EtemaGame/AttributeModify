@@ -1,9 +1,10 @@
-package com.etema.attributemodify;
+package com.etema.attributemodify.integration;
+
+import com.etema.attributemodify.AttributeModify;
 
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.fml.ModList;
-import net.minecraft.server.level.ServerPlayer;
 
 // Optional imports - only used if Apotheosis is loaded
 import dev.shadowsoffire.apotheosis.adventure.affix.AffixHelper;
@@ -35,9 +36,7 @@ public class ApotheosisIntegration {
             if (rarity != null) {
                 AffixHelper.setRarity(stack, rarity);
                 
-                if (AttributeModify.DEBUG_MODE) {
-                    AttributeModify.LOGGER.debug("Applied Apotheosis rarity '{}' to {}", rarityId, stack.getItem());
-                }
+                AttributeModify.LOGGER.info("Applied Apotheosis rarity '{}' to {}", rarityId, stack.getItem());
             }
         } catch (Throwable e) {
             AttributeModify.LOGGER.error("Failed to apply Apotheosis rarity via API: {}", e.getMessage());
@@ -56,10 +55,8 @@ public class ApotheosisIntegration {
             if (rarity != null) {
                 // Si ya tiene rareza, forzamos que nuestro sistema de calidad lo reconozca
                 // (esto disparará las modificaciones de atributos basadas en rareza)
-                if (AttributeModify.DEBUG_MODE) {
-                    AttributeModify.LOGGER.debug("Syncing internal quality with Apotheosis rarity '{}' for {}", 
+                AttributeModify.LOGGER.debug("Syncing internal quality with Apotheosis rarity '{}' for {}",
                         RarityRegistry.INSTANCE.getKey(rarity), stack.getItem());
-                }
             }
         } catch (Throwable e) {
             // Silently fail if not applicable

@@ -1,4 +1,9 @@
-package com.etema.attributemodify;
+package com.etema.attributemodify.integration;
+
+import com.etema.attributemodify.AttributeModify;
+import com.etema.attributemodify.ItemAttributeDataManager;
+import com.etema.attributemodify.service.AttributeResolutionService;
+import com.etema.attributemodify.service.AttributeApplicationService;
 
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.eventbus.api.SubscribeEvent;

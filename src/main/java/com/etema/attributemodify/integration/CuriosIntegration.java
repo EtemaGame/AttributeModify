@@ -1,5 +1,6 @@
-package com.etema.attributemodify;
+package com.etema.attributemodify.integration;
 
+import com.etema.attributemodify.AttributeModify;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.ModList;
 
@@ -17,7 +18,7 @@ public class CuriosIntegration {
 
         if (curiosLoaded) {
             try {
-                Class<?> handlerClass = Class.forName("com.etema.attributemodify.CuriosEventHandler");
+                Class<?> handlerClass = Class.forName("com.etema.attributemodify.integration.CuriosEventHandler");
                 Object handler = handlerClass.getDeclaredConstructor().newInstance();
                 MinecraftForge.EVENT_BUS.register(handler);
 

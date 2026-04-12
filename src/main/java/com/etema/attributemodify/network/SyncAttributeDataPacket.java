@@ -2,6 +2,7 @@ package com.etema.attributemodify.network;
 
 import com.etema.attributemodify.AttributeModify;
 import com.etema.attributemodify.ItemAttributeDataManager;
+import com.etema.attributemodify.handler.MiningTierHandler;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -230,9 +231,7 @@ public class SyncAttributeDataPacket {
             com.google.gson.JsonElement value = com.google.gson.JsonParser.parseString(valueStr);
             return new ItemAttributeDataManager.NbtCondition(path, operator, value);
         } catch (Exception e) {
-            if (AttributeModify.DEBUG_MODE) {
-                AttributeModify.LOGGER.error("Failed to parse NBT condition value '{}': {}", valueStr, e.getMessage());
-            }
+            AttributeModify.LOGGER.error("Failed to parse NBT condition value '{}': {}", valueStr, e.getMessage());
             return new ItemAttributeDataManager.NbtCondition(path, operator, null);
         }
     }
@@ -247,9 +246,7 @@ public class SyncAttributeDataPacket {
             ResourceLocation itemLoc = buf.readResourceLocation();
             Item item = ForgeRegistries.ITEMS.getValue(itemLoc);
             if (item == null) {
-                if (AttributeModify.DEBUG_MODE) {
-                    AttributeModify.LOGGER.warn("Skipping unknown item {} while decoding standard attribute data", itemLoc);
-                }
+                AttributeModify.LOGGER.warn("Skipping unknown item {} while decoding standard attribute data", itemLoc);
             }
 
             int slotsSize = buf.readInt();
@@ -281,10 +278,8 @@ public class SyncAttributeDataPacket {
                     ItemAttributeDataManager.NbtCondition nbtCondition = decodeNbtCondition(buf);
 
                     if (attr == null) {
-                        if (AttributeModify.DEBUG_MODE) {
-                            AttributeModify.LOGGER.warn("Skipping unknown attribute {} while decoding standard slot {}",
-                                    attrLoc, slot);
-                        }
+                        AttributeModify.LOGGER.warn("Skipping unknown attribute {} while decoding standard slot {}",
+                                attrLoc, slot);
                         continue;
                     }
 
@@ -302,9 +297,7 @@ public class SyncAttributeDataPacket {
             ResourceLocation itemLoc = buf.readResourceLocation();
             Item item = ForgeRegistries.ITEMS.getValue(itemLoc);
             if (item == null) {
-                if (AttributeModify.DEBUG_MODE) {
-                    AttributeModify.LOGGER.warn("Skipping unknown item {} while decoding Curios attribute data", itemLoc);
-                }
+                AttributeModify.LOGGER.warn("Skipping unknown item {} while decoding Curios attribute data", itemLoc);
             }
 
             int slotsSize = buf.readInt();
@@ -335,10 +328,7 @@ public class SyncAttributeDataPacket {
                     ItemAttributeDataManager.NbtCondition nbtCondition = decodeNbtCondition(buf);
 
                     if (attr == null) {
-                        if (AttributeModify.DEBUG_MODE) {
-                            AttributeModify.LOGGER.warn("Skipping unknown attribute {} while decoding Curios slot {}",
-                                    attrLoc, slotName);
-                        }
+                        AttributeModify.LOGGER.warn("Skipping unknown attribute {} while decoding Curios slot {}", attrLoc, slotName);
                         continue;
                     }
 
@@ -364,9 +354,7 @@ public class SyncAttributeDataPacket {
                 triggers.add(buf.readUtf());
             }
             if (item == null) {
-                if (AttributeModify.DEBUG_MODE) {
-                    AttributeModify.LOGGER.warn("Skipping unknown item {} while decoding durability rules", itemLoc);
-                }
+                AttributeModify.LOGGER.warn("Skipping unknown item {} while decoding durability rules", itemLoc);
                 continue;
             }
             durability.put(item, new com.etema.attributemodify.durability.DurabilityRule(value, mode, triggers));
@@ -391,7 +379,7 @@ public class SyncAttributeDataPacket {
                         tier = buf.readUtf();
                     }
                     ItemAttributeDataManager.NbtCondition nbtCondition = decodeNbtCondition(buf);
-                    overrides.add(new ItemAttributeDataManager.MiningOverride(speed, tier, tier != null ? com.etema.attributemodify.MiningTierHandler.parseTier(tier) : null, nbtCondition));
+                    overrides.add(new ItemAttributeDataManager.MiningOverride(speed, tier, tier != null ? MiningTierHandler.parseTier(tier) : null, nbtCondition));
                 }
 
                 if (item != null) {
