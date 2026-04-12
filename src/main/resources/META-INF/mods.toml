@@ -1,0 +1,43 @@
+modLoader="javafml"
+loaderVersion="${loader_version_range}"
+license="${mod_license}"
+# Mixin config
+[[mods]]
+modId="${mod_id}"
+version="${mod_version}"
+displayName="${mod_name}"
+credits="Created by Etema"
+authors="${mod_authors}"
+description='''${mod_description}
+
+Features:
+- Modify item attributes through datapacks
+- Add, remove, or modify existing attributes
+- Support for all equipment slots
+- Works in both singleplayer and multiplayer
+- Hot-reloadable with /reload command
+'''
+
+[[mixins]]
+config="attributemodify.mixins.json"
+
+[[dependencies.attributemodify]]
+modId="forge"
+mandatory=true
+versionRange="${forge_version_range}"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.attributemodify]]
+modId="minecraft"
+mandatory=true
+versionRange="${minecraft_version_range}"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.attributemodify]]
+modId="curios"
+mandatory=false
+versionRange="${curios_version_range}"
+ordering="AFTER"
+side="BOTH"

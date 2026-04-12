@@ -1,0 +1,10 @@
+{
+  "attributemodify.tooltip.custom_durability": "Custom Durability",
+  "attributemodify.tooltip.durability_separator": " / ",
+  "item.modifiers.mainhand": "When in Main Hand:",
+  "item.modifiers.offhand": "When in Off Hand:",
+  "item.modifiers.feet": "When on Feet:",
+  "item.modifiers.legs": "When on Legs:",
+  "item.modifiers.chest": "When on Body:",
+  "item.modifiers.head": "When on Head:"
+}

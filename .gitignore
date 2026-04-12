@@ -1,0 +1,29 @@
+.gradle
+build
+bin
+run
+out
+*.log
+.DS_Store
+*.swp
+
+# Eclipse files
+.classpath
+.project
+.settings
+
+# IntelliJ files
+.idea
+*.iml
+*.ipr
+*.iws
+
+# Gradle
+gradle-app.setting
+!gradle-wrapper.jar
+
+# Other potential leftovers
+build_attempt_*.log
+build_error_*.log
+build_log.txt
+build_errors*.txt
