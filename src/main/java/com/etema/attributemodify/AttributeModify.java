@@ -2,6 +2,7 @@ package com.etema.attributemodify;
 
 import com.etema.attributemodify.handler.*;
 import com.etema.attributemodify.integration.CuriosIntegration;
+import com.etema.attributemodify.editor.network.EditorNetwork;
 import com.etema.attributemodify.network.NetworkHandler;
 import com.mojang.logging.LogUtils;
 import net.minecraftforge.common.MinecraftForge;
@@ -38,6 +39,7 @@ public class AttributeModify {
         event.enqueueWork(() -> {
             // ConfigHandler removed - using datapack-only mode
             NetworkHandler.register();
+            EditorNetwork.register();
             LOGGER.info("AttributeModify - Setup completed (datapack-only mode)");
         });
     }
