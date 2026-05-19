@@ -3,6 +3,7 @@ package com.etema.attributemodify.editor;
 import com.etema.attributemodify.editor.model.EditableAttributeAction;
 import com.etema.attributemodify.editor.model.EditableAttributeModifier;
 import com.etema.attributemodify.editor.model.EditableItemRule;
+import com.etema.attributemodify.editor.model.EditableMiningOverride;
 import com.etema.attributemodify.editor.model.EditableOperationType;
 import com.etema.attributemodify.editor.model.EditableSlotType;
 import com.etema.attributemodify.editor.model.EditableValidationResult;
@@ -25,6 +26,23 @@ class EditorRuleValidatorTest {
                 EditableOperationType.ADDITION,
                 EditableSlotType.STANDARD,
                 "mainhand"));
+
+        EditableValidationResult result = validator().validate(rule);
+
+        assertTrue(result.isValid(), () -> String.join(", ", result.errors()));
+    }
+
+    @Test
+    void acceptsBodyAliasAndMiningRule() {
+        EditableItemRule rule = new EditableItemRule(id("minecraft:diamond_sword"), false);
+        rule.getAttributes().add(new EditableAttributeModifier(
+                id("minecraft:generic.attack_damage"),
+                EditableAttributeAction.ADD,
+                1.0,
+                EditableOperationType.ADDITION,
+                EditableSlotType.STANDARD,
+                "body"));
+        rule.getMiningOverrides().add(new EditableMiningOverride(8.0f, "iron"));
 
         EditableValidationResult result = validator().validate(rule);
 

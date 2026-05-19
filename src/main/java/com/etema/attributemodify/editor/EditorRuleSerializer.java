@@ -5,7 +5,10 @@ import com.etema.attributemodify.editor.model.EditableAttributeModifier;
 import com.etema.attributemodify.editor.model.EditableCondition;
 import com.etema.attributemodify.editor.model.EditableDurabilityModifier;
 import com.etema.attributemodify.editor.model.EditableItemRule;
+import com.etema.attributemodify.editor.model.EditableMiningOverride;
 import com.etema.attributemodify.editor.model.EditableOperationType;
+import com.etema.attributemodify.editor.model.EditableQualityLevel;
+import com.etema.attributemodify.editor.model.EditableQualitySystem;
 import com.etema.attributemodify.editor.model.EditableSlotType;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -86,6 +89,18 @@ public final class EditorRuleSerializer {
             rule.setDurability(durability);
         }
 
+        if (itemObject.has("mining") && itemObject.get("mining").isJsonArray()) {
+            readMiningOverrides(rule, itemObject.getAsJsonArray("mining"));
+        }
+
+        if (itemObject.has("quality_system") && itemObject.get("quality_system").isJsonObject()) {
+            rule.setQualitySystem(readQualitySystem(itemObject.getAsJsonObject("quality_system")));
+        }
+
+        if (itemObject.has("decorative") && itemObject.get("decorative").isJsonPrimitive()) {
+            rule.setDecorative(itemObject.get("decorative").getAsBoolean());
+        }
+
         return rule;
     }
 
@@ -151,6 +166,56 @@ public final class EditorRuleSerializer {
                 }
                 itemObject.add("durability_triggers", triggers);
             }
+        }
+
+        if (!rule.getMiningOverrides().isEmpty()) {
+            JsonArray mining = new JsonArray();
+            for (EditableMiningOverride miningOverride : rule.getMiningOverrides()) {
+                JsonObject object = new JsonObject();
+                if (miningOverride.getSpeed() != null) {
+                    object.addProperty("speed", miningOverride.getSpeed());
+                }
+                if (miningOverride.getTier() != null && !miningOverride.getTier().isBlank()) {
+                    object.addProperty("tier", miningOverride.getTier());
+                }
+                if (miningOverride.getCondition() != null) {
+                    object.add("nbt", toConditionObject(miningOverride.getCondition()));
+                }
+                if (object.size() > 0) {
+                    mining.add(object);
+                }
+            }
+            if (mining.size() > 0) {
+                itemObject.add("mining", mining);
+            }
+        }
+
+        EditableQualitySystem quality = rule.getQualitySystem();
+        if (quality != null && !quality.getLevels().isEmpty()) {
+            JsonObject qualityObject = new JsonObject();
+            qualityObject.addProperty("tag_path", quality.getTagPath());
+            if (!quality.getTriggers().isEmpty()) {
+                JsonArray triggers = new JsonArray();
+                for (String trigger : quality.getTriggers()) {
+                    triggers.add(trigger);
+                }
+                qualityObject.add("triggers", triggers);
+            }
+            JsonArray levels = new JsonArray();
+            for (EditableQualityLevel level : quality.getLevels()) {
+                JsonObject levelObject = new JsonObject();
+                if (level.getValue() != null) {
+                    levelObject.add("value", level.getValue().deepCopy());
+                }
+                levelObject.addProperty("weight", level.getWeight());
+                levels.add(levelObject);
+            }
+            qualityObject.add("levels", levels);
+            itemObject.add("quality_system", qualityObject);
+        }
+
+        if (rule.isDecorative()) {
+            itemObject.addProperty("decorative", true);
         }
 
         return itemObject;
@@ -249,6 +314,55 @@ public final class EditorRuleSerializer {
                 durability.getTriggers().add(trigger.getAsString());
             }
         }
+    }
+
+    private static void readMiningOverrides(EditableItemRule rule, JsonArray miningArray) {
+        for (JsonElement element : miningArray) {
+            if (!element.isJsonObject()) {
+                continue;
+            }
+
+            JsonObject object = element.getAsJsonObject();
+            Float speed = object.has("speed") && object.get("speed").isJsonPrimitive()
+                    ? object.get("speed").getAsFloat()
+                    : null;
+            String tier = readString(object, "tier");
+            EditableMiningOverride miningOverride = new EditableMiningOverride(speed, tier);
+            miningOverride.setCondition(readCondition(object));
+            rule.getMiningOverrides().add(miningOverride);
+        }
+    }
+
+    private static EditableQualitySystem readQualitySystem(JsonObject object) {
+        EditableQualitySystem quality = new EditableQualitySystem();
+        String tagPath = readString(object, "tag_path");
+        if (tagPath != null) {
+            quality.setTagPath(tagPath);
+        }
+
+        if (object.has("triggers") && object.get("triggers").isJsonArray()) {
+            for (JsonElement trigger : object.getAsJsonArray("triggers")) {
+                if (trigger.isJsonPrimitive() && trigger.getAsJsonPrimitive().isString()) {
+                    quality.getTriggers().add(trigger.getAsString());
+                }
+            }
+        }
+
+        if (object.has("levels") && object.get("levels").isJsonArray()) {
+            for (JsonElement element : object.getAsJsonArray("levels")) {
+                if (!element.isJsonObject()) {
+                    continue;
+                }
+                JsonObject levelObject = element.getAsJsonObject();
+                JsonElement value = levelObject.has("value") ? levelObject.get("value").deepCopy() : null;
+                int weight = levelObject.has("weight") && levelObject.get("weight").isJsonPrimitive()
+                        ? levelObject.get("weight").getAsInt()
+                        : 1;
+                quality.getLevels().add(new EditableQualityLevel(value, weight));
+            }
+        }
+
+        return quality;
     }
 
     private static UUID readUuid(JsonObject object) {

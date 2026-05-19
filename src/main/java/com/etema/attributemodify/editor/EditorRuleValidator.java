@@ -5,6 +5,9 @@ import com.etema.attributemodify.editor.model.EditableAttributeAction;
 import com.etema.attributemodify.editor.model.EditableAttributeModifier;
 import com.etema.attributemodify.editor.model.EditableDurabilityModifier;
 import com.etema.attributemodify.editor.model.EditableItemRule;
+import com.etema.attributemodify.editor.model.EditableMiningOverride;
+import com.etema.attributemodify.editor.model.EditableQualityLevel;
+import com.etema.attributemodify.editor.model.EditableQualitySystem;
 import com.etema.attributemodify.editor.model.EditableSlotType;
 import com.etema.attributemodify.editor.model.EditableValidationResult;
 import com.google.gson.JsonObject;
@@ -35,6 +38,8 @@ public final class EditorRuleValidator {
 
         validateAttributes(rule, result);
         validateDurability(rule.getDurability(), result);
+        validateMining(rule, result);
+        validateQuality(rule.getQualitySystem(), result);
 
         if (result.isValid()) {
             try {
@@ -120,5 +125,52 @@ public final class EditorRuleValidator {
                 result.error("Unsupported durability trigger: " + trigger);
             }
         }
+    }
+
+    private void validateMining(EditableItemRule rule, EditableValidationResult result) {
+        for (EditableMiningOverride miningOverride : rule.getMiningOverrides()) {
+            if (miningOverride == null) {
+                result.error("Mining override is missing.");
+                continue;
+            }
+            Float speed = miningOverride.getSpeed();
+            String tier = miningOverride.getTier();
+            if (speed == null && (tier == null || tier.isBlank())) {
+                result.error("Mining override needs speed, tier, or both.");
+            }
+            if (speed != null && (!Float.isFinite(speed) || speed < 0.0f)) {
+                result.error("Mining speed must be a finite non-negative number.");
+            }
+            if (tier != null && !tier.isBlank() && !isKnownMiningTier(tier)) {
+                result.error("Unsupported mining tier: " + tier);
+            }
+        }
+    }
+
+    private void validateQuality(EditableQualitySystem quality, EditableValidationResult result) {
+        if (quality == null) {
+            return;
+        }
+        if (quality.getTagPath() == null || quality.getTagPath().isBlank()) {
+            result.error("Quality tag path is required.");
+        }
+        if (quality.getLevels().isEmpty()) {
+            result.error("Quality system needs at least one level.");
+        }
+        for (EditableQualityLevel level : quality.getLevels()) {
+            if (level.getValue() == null) {
+                result.error("Quality level value is required.");
+            }
+            if (level.getWeight() <= 0) {
+                result.error("Quality level weight must be greater than 0.");
+            }
+        }
+    }
+
+    private boolean isKnownMiningTier(String tier) {
+        return switch (tier.toLowerCase(Locale.ROOT)) {
+            case "wood", "wooden", "stone", "iron", "diamond", "netherite", "gold", "golden" -> true;
+            default -> false;
+        };
     }
 }

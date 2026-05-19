@@ -2,6 +2,8 @@
 
 Customize item attributes, mining behavior, durability, and item progression with JSON datapacks. No Java required.
 
+Latest Forge release: `1.1.2` for Minecraft `1.20.1`.
+
 `AttributeModify` is the Forge edition for Minecraft 1.20.1.
 `NeoAttributeModify` is the NeoForge edition for Minecraft 1.21.1.
 
@@ -24,6 +26,7 @@ Both projects use the same datapack folder layout and the same general JSON styl
 - Mark items as decorative
 - Split configs across multiple files and hot-reload them with `/reload`
 - Sync everything automatically in multiplayer
+- Edit rules in-game with `/attributemodify_editor`
 
 ## Datapack Location
 
@@ -268,6 +271,20 @@ Supported triggers:
 ### Standard equipment slots
 
 `mainhand`, `offhand`, `head`, `chest`, `legs`, `feet`, `body`
+
+If no slot is provided, AttributeModify uses automatic slot detection. This keeps older and simpler datapacks valid while still allowing explicit slots for special cases like offhand, Curios, or forced equipment behavior.
+
+## In-Game Editor
+
+Open the editor with:
+
+```text
+/attributemodify_editor
+```
+
+The editor can select item targets, switch item/tag mode, edit attribute changes, use automatic or explicit slots, add NBT/component conditions, configure durability, mining overrides, quality rolls, and decorative flags.
+
+Rules saved by the editor use the same datapack format shown above.
 
 ### Actions
 

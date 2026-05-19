@@ -33,6 +33,7 @@ public final class EditorCatalogService {
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             equipmentSlots.add(slot.getName());
         }
+        equipmentSlots.add("body");
 
         Set<String> namespaces = new LinkedHashSet<>();
         for (EditorItemInfo item : items) {

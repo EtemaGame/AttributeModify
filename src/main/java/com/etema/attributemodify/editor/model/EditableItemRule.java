@@ -9,7 +9,10 @@ public final class EditableItemRule {
     private ResourceLocation targetId;
     private boolean tagTarget;
     private final List<EditableAttributeModifier> attributes = new ArrayList<>();
+    private final List<EditableMiningOverride> miningOverrides = new ArrayList<>();
     private EditableDurabilityModifier durability;
+    private EditableQualitySystem qualitySystem;
+    private boolean decorative;
 
     public EditableItemRule(ResourceLocation targetId, boolean tagTarget) {
         this.targetId = targetId;
@@ -44,6 +47,26 @@ public final class EditableItemRule {
         this.durability = durability;
     }
 
+    public List<EditableMiningOverride> getMiningOverrides() {
+        return miningOverrides;
+    }
+
+    public EditableQualitySystem getQualitySystem() {
+        return qualitySystem;
+    }
+
+    public void setQualitySystem(EditableQualitySystem qualitySystem) {
+        this.qualitySystem = qualitySystem;
+    }
+
+    public boolean isDecorative() {
+        return decorative;
+    }
+
+    public void setDecorative(boolean decorative) {
+        this.decorative = decorative;
+    }
+
     public String serializedTargetKey() {
         return tagTarget ? "#" + targetId : targetId.toString();
     }
@@ -53,7 +76,12 @@ public final class EditableItemRule {
         for (EditableAttributeModifier attribute : attributes) {
             copy.getAttributes().add(attribute.copy());
         }
+        for (EditableMiningOverride miningOverride : miningOverrides) {
+            copy.getMiningOverrides().add(miningOverride.copy());
+        }
         copy.setDurability(durability == null ? null : durability.copy());
+        copy.setQualitySystem(qualitySystem == null ? null : qualitySystem.copy());
+        copy.setDecorative(decorative);
         return copy;
     }
 }

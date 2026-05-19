@@ -1,4 +1,7 @@
 .gradle
+.gradle-user
+.jdk
+*.zip
 build
 bin
 run
@@ -29,7 +32,6 @@ build_log.txt
 build_errors*.txt
 
 # Personal project info
-CHANGELOG.md
 CURSEFORGE_DESCRIPTION.md
 TUTORIAL_EN.md
 TUTORIAL_ES.md

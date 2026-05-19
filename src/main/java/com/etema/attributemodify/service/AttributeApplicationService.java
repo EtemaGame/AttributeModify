@@ -11,11 +11,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Service specialized in applying resolved attribute rules to the Forge event.
  */
 public class AttributeApplicationService {
+    private static final Set<String> SEMANTIC_WARNINGS = ConcurrentHashMap.newKeySet();
 
     /**
      * Applies a list of resolved entries to the modifier event.
@@ -58,8 +60,8 @@ public class AttributeApplicationService {
 
         Collection<AttributeModifier> originalModifiers = event.getOriginalModifiers().get(attribute);
         if (originalModifiers.isEmpty()) {
-            AttributeModify.LOGGER.warn("[semantic] MODIFY {} on {} in slot {} found no original item modifier to replace",
-                    attribute.getDescriptionId(), event.getItemStack().getItem(), event.getSlotType());
+            warnSemanticOnce("no_original", event, attribute,
+                    "[semantic] MODIFY {} on {} in slot {} found no original item modifier to replace");
             return;
         }
 
@@ -83,8 +85,17 @@ public class AttributeApplicationService {
         }
 
         if (!anyModified) {
-            AttributeModify.LOGGER.warn("[semantic] MODIFY {} on {} in slot {} found modifiers, but none matched the original item identity",
-                    attribute.getDescriptionId(), event.getItemStack().getItem(), event.getSlotType());
+            warnSemanticOnce("identity_miss", event, attribute,
+                    "[semantic] MODIFY {} on {} in slot {} found modifiers, but none matched the original item identity");
+        }
+    }
+
+    private static void warnSemanticOnce(String reason, ItemAttributeModifierEvent event, Attribute attribute, String message) {
+        String key = reason + "|" + event.getItemStack().getItem() + "|" + event.getSlotType() + "|"
+                + attribute.getDescriptionId();
+        if (SEMANTIC_WARNINGS.add(key)) {
+            AttributeModify.LOGGER.warn(message, attribute.getDescriptionId(), event.getItemStack().getItem(),
+                    event.getSlotType());
         }
     }
 

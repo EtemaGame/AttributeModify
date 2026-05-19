@@ -642,6 +642,33 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
                 LOGGER.error("Error parsing durability for item {}: {}", getItemName(item), e.getMessage());
             }
         }
+
+        if (itemData.has("quality_system") && itemData.get("quality_system").isJsonObject()) {
+            try {
+                QualityConfig qualityConfig = parseQualityConfig(item, itemData.getAsJsonObject("quality_system"));
+                if (qualityConfig != null) {
+                    qualityConfigs.put(item, qualityConfig);
+                }
+            } catch (Exception e) {
+                LOGGER.error("Error parsing quality system for item {}: {}", getItemName(item), e.getMessage());
+            }
+        }
+
+        if (itemData.has("mining") && itemData.get("mining").isJsonArray()) {
+            try {
+                List<MiningOverride> overrides = parseMiningOverrides(item, itemData.getAsJsonArray("mining"));
+                if (!overrides.isEmpty()) {
+                    miningOverrides.put(item, List.copyOf(overrides));
+                }
+            } catch (Exception e) {
+                LOGGER.error("Error parsing mining overrides for item {}: {}", getItemName(item), e.getMessage());
+            }
+        }
+
+        if (itemData.has("decorative") && itemData.get("decorative").isJsonPrimitive()
+                && itemData.get("decorative").getAsBoolean()) {
+            decorativeItems.add(item);
+        }
     }
 
     private void processAutoSlotAttributes(Item item, JsonArray attributesArray,
@@ -852,6 +879,7 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
             case "legs":
                 return EquipmentSlot.LEGS;
             case "chest":
+            case "body":
                 return EquipmentSlot.CHEST;
             case "head":
                 return EquipmentSlot.HEAD;

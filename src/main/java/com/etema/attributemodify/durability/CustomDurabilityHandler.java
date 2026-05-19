@@ -41,6 +41,16 @@ public class CustomDurabilityHandler {
     }
 
     @SubscribeEvent
+    public static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
+        if (event.getEntity() == null) {
+            return;
+        }
+
+        String playerPrefix = event.getEntity().getUUID() + "|";
+        RECENT_TRIGGER_TICKS.keySet().removeIf(key -> key.startsWith(playerPrefix));
+    }
+
+    @SubscribeEvent
     public static void onPlayerRespawn(PlayerEvent.PlayerRespawnEvent event) {
         scanPlayerInventory(event.getEntity());
     }

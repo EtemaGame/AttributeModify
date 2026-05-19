@@ -27,6 +27,7 @@ public record EditorValidationContext(
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             standardSlots.add(slot.getName());
         }
+        standardSlots.add("body");
 
         return new EditorValidationContext(
                 Set.copyOf(items),
@@ -40,7 +41,7 @@ public record EditorValidationContext(
         return new EditorValidationContext(
                 itemIds == null ? Set.of() : Set.copyOf(itemIds),
                 attributeIds == null ? Set.of() : Set.copyOf(attributeIds),
-                Set.of("mainhand", "offhand", "feet", "legs", "chest", "head"),
+                Set.of("mainhand", "offhand", "feet", "legs", "chest", "head", "body"),
                 Set.of(),
                 false);
     }

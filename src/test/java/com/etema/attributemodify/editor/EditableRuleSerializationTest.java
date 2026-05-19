@@ -34,7 +34,27 @@ class EditableRuleSerializationTest {
                       ]
                     },
                     "durability": 2000,
-                    "durability_triggers": ["melee_hit"]
+                    "durability_triggers": ["melee_hit"],
+                    "mining": [
+                      {
+                        "speed": 12.0,
+                        "tier": "diamond",
+                        "nbt": {
+                          "path": "quality",
+                          "operator": "equals",
+                          "value": "legendary"
+                        }
+                      }
+                    ],
+                    "quality_system": {
+                      "tag_path": "quality",
+                      "triggers": ["craft", "loot"],
+                      "levels": [
+                        { "value": "common", "weight": 60 },
+                        { "value": "legendary", "weight": 10 }
+                      ]
+                    },
+                    "decorative": true
                   }
                 }
                 """).getAsJsonObject();
@@ -55,5 +75,11 @@ class EditableRuleSerializationTest {
         assertTrue(attribute.has("nbt"));
         assertEquals(2000, item.get("durability").getAsInt());
         assertEquals("melee_hit", item.getAsJsonArray("durability_triggers").get(0).getAsString());
+        assertEquals(12.0f, item.getAsJsonArray("mining").get(0).getAsJsonObject().get("speed").getAsFloat());
+        assertEquals("diamond", item.getAsJsonArray("mining").get(0).getAsJsonObject().get("tier").getAsString());
+        assertEquals("quality", item.getAsJsonObject("quality_system").get("tag_path").getAsString());
+        assertEquals("legendary", item.getAsJsonObject("quality_system").getAsJsonArray("levels").get(1)
+                .getAsJsonObject().get("value").getAsString());
+        assertTrue(item.get("decorative").getAsBoolean());
     }
 }
