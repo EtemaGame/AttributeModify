@@ -2,6 +2,7 @@
   "required": true,
   "minVersion": "0.8",
   "package": "com.etema.attributemodify.mixin",
+  "refmap": "attributemodify.refmap.json",
   "compatibilityLevel": "JAVA_17",
   "mixins": [
     "ItemStackMixin"
