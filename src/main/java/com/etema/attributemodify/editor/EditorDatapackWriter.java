@@ -16,8 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import java.util.stream.Stream;
 import java.util.List;
 
 public final class EditorDatapackWriter {
@@ -26,7 +25,6 @@ public final class EditorDatapackWriter {
     public static final String RULE_FILE_NAME = "editor_rules.json";
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
-    private static final DateTimeFormatter BACKUP_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
 
     private EditorDatapackWriter() {
     }
@@ -50,14 +48,10 @@ public final class EditorDatapackWriter {
             Files.createDirectories(rulesPath.getParent());
             writePackMeta(datapackRoot.resolve("pack.mcmeta"));
 
-            Path backupPath = null;
-            if (Files.exists(rulesPath)) {
-                backupPath = backupExisting(rulesPath);
-            }
-
             JsonObject document = EditorRuleSerializer.toDocument(rules);
             atomicWrite(rulesPath, GSON.toJson(document));
-            return SaveResult.success(rulesPath, backupPath);
+            cleanupLegacyBackups(rulesPath.getParent());
+            return SaveResult.success(rulesPath);
         } catch (IOException | RuntimeException e) {
             AttributeModify.LOGGER.error("Failed to write editor datapack rules: {}", e.getMessage(), e);
             return SaveResult.failure(e.getMessage());
@@ -76,12 +70,6 @@ public final class EditorDatapackWriter {
         pack.addProperty("description", "AttributeModify generated editor rules");
         root.add("pack", pack);
         atomicWrite(packMetaPath, GSON.toJson(root));
-    }
-
-    private static Path backupExisting(Path rulesPath) throws IOException {
-        Path backupPath = rulesPath.resolveSibling("editor_rules-" + LocalDateTime.now().format(BACKUP_FORMAT) + ".json.bak");
-        Files.copy(rulesPath, backupPath, StandardCopyOption.REPLACE_EXISTING);
-        return backupPath;
     }
 
     private static void atomicWrite(Path target, String content) throws IOException {
@@ -103,9 +91,31 @@ public final class EditorDatapackWriter {
         }
     }
 
+    private static void cleanupLegacyBackups(Path directory) {
+        if (directory == null || !Files.isDirectory(directory)) {
+            return;
+        }
+
+        try (Stream<Path> paths = Files.list(directory)) {
+            paths.filter(path -> {
+                        String name = path.getFileName().toString();
+                        return name.startsWith("editor_rules") && name.endsWith(".bak");
+                    })
+                    .forEach(path -> {
+                        try {
+                            Files.deleteIfExists(path);
+                        } catch (IOException e) {
+                            AttributeModify.LOGGER.warn("Failed to delete legacy backup {}: {}", path, e.getMessage());
+                        }
+                    });
+        } catch (IOException e) {
+            AttributeModify.LOGGER.warn("Failed to scan legacy backups in {}: {}", directory, e.getMessage());
+        }
+    }
+
     public record SaveResult(boolean success, Path rulesPath, Path backupPath, String error) {
-        public static SaveResult success(Path rulesPath, Path backupPath) {
-            return new SaveResult(true, rulesPath, backupPath, null);
+        public static SaveResult success(Path rulesPath) {
+            return new SaveResult(true, rulesPath, null, null);
         }
 
         public static SaveResult failure(String error) {

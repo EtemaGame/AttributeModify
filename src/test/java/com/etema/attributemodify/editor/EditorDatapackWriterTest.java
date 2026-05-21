@@ -11,8 +11,9 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.stream.Stream;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class EditorDatapackWriterTest {
@@ -20,12 +21,13 @@ class EditorDatapackWriterTest {
     Path tempDir;
 
     @Test
-    void writesGeneratedDatapackAndBackup() throws Exception {
+    void writesSingleGeneratedDatapackAndCleansBackups() throws Exception {
         Path rulesPath = tempDir.resolve("AttributeModify_Editor")
                 .resolve("data")
                 .resolve("attributemodify_editor")
                 .resolve("item_attributes")
                 .resolve("editor_rules.json");
+        Path backupDir = rulesPath.getParent();
 
         EditableItemRule rule = new EditableItemRule(EditorRuleValidatorTest.id("minecraft:diamond_sword"), false);
         rule.getAttributes().add(new EditableAttributeModifier(
@@ -37,13 +39,17 @@ class EditorDatapackWriterTest {
                 "mainhand"));
 
         EditorDatapackWriter.SaveResult first = EditorDatapackWriter.write(rulesPath, List.of(rule));
+        Files.writeString(rulesPath.resolveSibling("editor_rules-20260520-002901.json.bak"), "{}");
         EditorDatapackWriter.SaveResult second = EditorDatapackWriter.write(rulesPath, List.of(rule));
 
         assertTrue(first.success(), first.error());
         assertTrue(second.success(), second.error());
         assertTrue(Files.exists(rulesPath));
         assertTrue(Files.exists(tempDir.resolve("AttributeModify_Editor").resolve("pack.mcmeta")));
-        assertNotNull(second.backupPath());
-        assertTrue(Files.exists(second.backupPath()));
+        assertNull(second.backupPath());
+
+        try (Stream<Path> files = Files.list(backupDir)) {
+            assertTrue(files.noneMatch(path -> path.getFileName().toString().endsWith(".bak")));
+        }
     }
 }

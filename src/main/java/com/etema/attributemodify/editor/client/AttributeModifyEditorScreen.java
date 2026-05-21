@@ -30,8 +30,11 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 
 public final class AttributeModifyEditorScreen extends Screen {
     private static final int BG = 0xFF090D12;
@@ -86,8 +89,7 @@ public final class AttributeModifyEditorScreen extends Screen {
     private static final String[] STANDARD_SLOTS = {"mainhand", "offhand", "head", "chest", "legs", "feet"};
     private static final EditableAttributeAction[] ACTION_VALUES = {
             EditableAttributeAction.ADD,
-            EditableAttributeAction.MODIFY,
-            EditableAttributeAction.REMOVE
+            EditableAttributeAction.MODIFY
     };
     private static final EditableOperationType[] OPERATION_VALUES = {
             EditableOperationType.ADDITION,
@@ -183,6 +185,9 @@ public final class AttributeModifyEditorScreen extends Screen {
     }
 
     private record BaseAttribute(ResourceLocation attributeId, double amount, EditableOperationType operation, String slot) {
+    }
+
+    private record VisibleAttributeRow(int baseIndex, int modifierIndex, BaseAttribute baseAttribute, EditableAttributeModifier modifier) {
     }
 
     private record AttributeOption(ResourceLocation id, String descriptionId, String translatedName, String namespace, String searchKey) {
@@ -470,15 +475,7 @@ public final class AttributeModifyEditorScreen extends Screen {
             g.drawString(font, "not used for remove", x + 6, centeredTextY(l.amountY(), CONTROL_H), TEXT_MUTED, false);
         }
 
-        renderSectionHeader(g, x, sectionHeaderYForInput(l.durabilityY()), w, "DURABILITY");
-        String vanilla = selectedItem.damageable() ? Integer.toString(selectedItem.maxDamage()) : "not damageable";
-        drawFieldLabel(g, "Override max durability", x, l.durabilityY());
-        String vanillaText = "vanilla: " + vanilla;
-        g.drawString(font, vanillaText, x + w - font.width(vanillaText) - 4,
-                l.durabilityY() - FIELD_LABEL_H - LABEL_INPUT_GAP, TEXT_MUTED, false);
-        renderInputBg(g, x, l.durabilityY(), Math.min(170, w), CONTROL_H, true);
-
-        return l.formBottom();
+        return l.amountY() + Math.max(CONTROL_H, BUTTON_H) + SECTION_GAP;
     }
 
     private void renderRightPanel(GuiGraphics g, int x, int y, int w, int h, int mx, int my) {
@@ -495,12 +492,8 @@ public final class AttributeModifyEditorScreen extends Screen {
 
         int cy = y + 6;
         cy = renderAttributesSection(g, x, cy, w, mx, my);
-
-        if (currentRule != null && currentRule.getDurability() != null && currentRule.getDurability().getDurability() != null) {
-            cy += 8;
-            String line = "Durability: " + currentRule.getDurability().getDurability();
-            g.drawString(font, truncatePx(line, w - 20), x + 10, cy + 3, ACCENT2, false);
-        }
+        cy += 8;
+        cy = renderDurabilitySection(g, x, cy, w);
 
         if (externalConflict) {
             cy += 22;
@@ -527,46 +520,67 @@ public final class AttributeModifyEditorScreen extends Screen {
         boolean canReset = hasRuleOverrides();
         drawHeaderButton(g, resetRect, "RESET", canReset && contains(resetRect, mx, my), canReset);
 
-        int total = visibleAttributeRowCount();
-        if (total == 0) {
+        List<VisibleAttributeRow> rows = visibleAttributeRows();
+        if (rows.isEmpty()) {
             g.drawString(font, "No attributes detected. Use + ADD to create one.", x + 10, cy + 3, TEXT_DIM, false);
             return cy + 18;
         }
 
-        int maxRows = Math.min(total, maxVisibleAttributeRows());
-        int row = 0;
-
-        int baseRows = Math.min(baseAttributes.size(), maxRows);
-        for (int i = 0; i < baseRows; i++) {
-            BaseAttribute attr = baseAttributes.get(i);
-            int rowY = cy + row * 20;
-            boolean selected = i == selectedBaseAttributeIndex && draftSource == DraftSource.BASE;
+        for (int i = 0; i < rows.size(); i++) {
+            VisibleAttributeRow row = rows.get(i);
+            int rowY = cy + i * 20;
+            boolean selected = row.modifierIndex() >= 0
+                    ? row.modifierIndex() == selectedModifierIndex && draftSource == DraftSource.MODIFIER
+                    : row.baseIndex() == selectedBaseAttributeIndex && draftSource == DraftSource.BASE;
             boolean hover = mx >= x + 6 && mx < x + w - 6 && my >= rowY - rightScroll && my < rowY - rightScroll + 20;
-            renderAttributeSummaryRow(g, x, rowY, w, attributeDisplayName(attr.attributeId()),
-                    effectText(attr.amount(), attr.operation(), EditableAttributeAction.MODIFY), selected, hover, row, 0);
-            row++;
-        }
 
-        int remaining = maxRows - row;
-        int changes = currentRule == null ? 0 : currentRule.getAttributes().size();
-        for (int i = 0; i < Math.min(changes, remaining); i++) {
-            EditableAttributeModifier mod = currentRule.getAttributes().get(i);
-            int rowY = cy + row * 20;
-            boolean selected = i == selectedModifierIndex && draftSource == DraftSource.MODIFIER;
-            boolean hover = mx >= x + 6 && mx < x + w - 6 && my >= rowY - rightScroll && my < rowY - rightScroll + 20;
-            String name = mod.getAttributeId() == null ? "Unknown attribute" : attributeDisplayName(mod.getAttributeId());
-            String effect = effectText(mod.getAmount(), mod.getOperation(), mod.getAction());
-            renderAttributeSummaryRow(g, x, rowY, w, name, effect, selected, hover, row, 22);
+            if (row.modifier() != null) {
+                EditableAttributeModifier mod = row.modifier();
+                String name = mod.getAttributeId() == null ? "Unknown attribute" : attributeDisplayName(mod.getAttributeId());
+                String effect = effectText(mod.getAmount(), mod.getOperation(), mod.getAction());
+                renderAttributeSummaryRow(g, x, rowY, w, name, effect, selected, hover, i, 22);
+            } else {
+                BaseAttribute attr = row.baseAttribute();
+                renderAttributeSummaryRow(g, x, rowY, w, attributeDisplayName(attr.attributeId()),
+                        effectText(attr.amount(), attr.operation(), EditableAttributeAction.MODIFY), selected, hover, i, 22);
+            }
+
             renderAttributeDeleteButton(g, x, rowY, w, contains(attributeDeleteButtonScreenRect(x, rowY - rightScroll, w), mx, my));
-            row++;
         }
 
-        cy += row * 20;
-        if (total > maxRows) {
-            g.drawString(font, "+" + (total - maxRows) + " more...", x + 10, cy + 3, TEXT_DIM, false);
-            cy += 16;
+        return cy + rows.size() * 20;
+    }
+
+    private int renderDurabilitySection(GuiGraphics g, int x, int cy, int w) {
+        cy = renderSectionHeader(g, x + 6, cy, w - 12, "DURABILITY");
+
+        boolean damageable = selectedItem != null && selectedItem.damageable();
+        String vanillaStr = damageable ? Integer.toString(selectedItem.maxDamage()) : "not damageable";
+        String vanillaLabel = "Vanilla: " + vanillaStr;
+        g.drawString(font, truncatePx(vanillaLabel, w - 20), x + 10, cy + 2, TEXT_MUTED, false);
+        cy += font.lineHeight + 6;
+
+        int inputW = Math.min(170, w - 16);
+        boolean editable = damageable;
+        renderInputBg(g, x + 8, cy, inputW, CONTROL_H, editable);
+
+        if (durabilityBox != null) {
+            durabilityBox.setX(x + 13);
+            durabilityBox.setY(centeredEditBoxY(cy));
+            durabilityBox.setWidth(Math.max(20, inputW - 10));
+            durabilityBox.visible = true;
+            durabilityBox.active = editable;
+
+            boolean hasOverride = currentRule != null
+                    && currentRule.getDurability() != null
+                    && currentRule.getDurability().getDurability() != null;
+            String hint = hasOverride
+                    ? Integer.toString(currentRule.getDurability().getDurability())
+                    : "Vanilla: " + vanillaStr;
+            durabilityBox.setHint(Component.literal(hint));
         }
-        return cy;
+
+        return cy + CONTROL_H + 6;
     }
 
     private void renderAttributeSummaryRow(GuiGraphics g, int x, int rowY, int w, String name, String effect,
@@ -591,7 +605,7 @@ public final class AttributeModifyEditorScreen extends Screen {
         int bg = hover ? 0xFF24171B : INPUT_BG;
         g.fill(rect.getX(), rect.getY(), rect.getX() + rect.getWidth(), rect.getY() + rect.getHeight(), bg);
         drawBorder(g, rect.getX(), rect.getY(), rect.getWidth(), rect.getHeight(), border);
-        g.drawString(font, "x", rect.getX() + Math.max(1, (rect.getWidth() - font.width("x")) / 2),
+        g.drawString(font, "X", rect.getX() + Math.max(1, (rect.getWidth() - font.width("X")) / 2),
                 centeredTextY(rect.getY(), rect.getHeight()), textColor, false);
     }
 
@@ -886,7 +900,7 @@ public final class AttributeModifyEditorScreen extends Screen {
         int amountY = y;
         y += Math.max(CONTROL_H, BUTTON_H) + SECTION_GAP + SECTION_HEADER_H + 2 + FIELD_LABEL_H + LABEL_INPUT_GAP;
         int durabilityY = y;
-        int formBottom = durabilityY + CONTROL_H + 6;
+        int formBottom = amountY + Math.max(CONTROL_H, BUTTON_H) + SECTION_GAP;
 
         int rightX;
         int rightY;
@@ -944,7 +958,6 @@ public final class AttributeModifyEditorScreen extends Screen {
         int attributeWidth = Math.max(24, l.formW() - 10);
         setEditBoxBounds(attributeBox, l.formX() + 5, centeredEditBoxY(l.attributeY()) - formScroll, attributeWidth);
         setEditBoxBounds(amountBox, l.formX() + 5, centeredEditBoxY(l.amountY()) - formScroll, l.formW() - 10);
-        setEditBoxBounds(durabilityBox, l.formX() + 5, centeredEditBoxY(l.durabilityY()) - formScroll, Math.min(160, l.formW() - 10));
 
         if (attributePickerButton != null) {
             // The attribute field itself opens the picker. The extra arrow button was visual noise.
@@ -969,7 +982,6 @@ public final class AttributeModifyEditorScreen extends Screen {
 
         applyFormVisibility(attributeBox, l.attributeY() - formScroll, CONTROL_H, activeDraft, l);
         applyFormVisibility(amountBox, l.amountY() - formScroll, CONTROL_H, activeDraft && action != EditableAttributeAction.REMOVE, l);
-        applyFormVisibility(durabilityBox, l.durabilityY() - formScroll, CONTROL_H, activeDraft, l);
 
         if (attributePickerButton != null) {
             attributePickerButton.visible = false;
@@ -984,7 +996,7 @@ public final class AttributeModifyEditorScreen extends Screen {
             applyButton.setWidth(64);
             applyButton.setHeight(BUTTON_H);
             applyButton.visible = true;
-            applyButton.active = activeDraft;
+            applyButton.active = activeDraft || (selectedItem != null && selectedItem.damageable());
         }
 
         if (closeButton != null) {
@@ -1064,6 +1076,9 @@ public final class AttributeModifyEditorScreen extends Screen {
     }
 
     private int measureFormContentHeight(EditorLayout l) {
+        if (!hasActiveDraft()) {
+            return Math.max(0, l.attributeY() + 32 - l.contentTop());
+        }
         return Math.max(0, l.formBottom() - l.contentTop());
     }
 
@@ -1106,7 +1121,7 @@ public final class AttributeModifyEditorScreen extends Screen {
             return true;
         }
 
-        if (clickAttributeList(mx, my)) {
+        if (clickPendingModifierList(mx, my)) {
             closeDropdown();
             return true;
         }
@@ -1322,20 +1337,18 @@ public final class AttributeModifyEditorScreen extends Screen {
     }
 
     private boolean clickDeleteAttributeModifierButton(double mx, double my) {
-        if (layout == null || selectedItem == null || currentRule == null || currentRule.getAttributes().isEmpty()) {
+        if (layout == null || selectedItem == null) {
             return false;
         }
 
-        int maxRows = Math.min(visibleAttributeRowCount(), maxVisibleAttributeRows());
-        int baseRows = Math.min(baseAttributes.size(), maxRows);
-        int visibleModifierRows = Math.min(currentRule.getAttributes().size(), Math.max(0, maxRows - baseRows));
+        List<VisibleAttributeRow> rows = visibleAttributeRows();
+        int top = attributesRowsTop(layout) - rightScroll;
 
-        for (int i = 0; i < visibleModifierRows; i++) {
-            int visibleRow = baseRows + i;
-            int screenRowY = attributesRowsTop(layout) + visibleRow * 20 - rightScroll;
+        for (int i = 0; i < rows.size(); i++) {
+            int screenRowY = top + i * 20;
             Rect2i deleteRect = attributeDeleteButtonScreenRect(layout.rightX(), screenRowY, layout.rightW());
             if (contains(deleteRect, mx, my)) {
-                deleteAttributeModifier(i);
+                removeVisibleAttributeRow(rows.get(i));
                 return true;
             }
         }
@@ -1343,114 +1356,84 @@ public final class AttributeModifyEditorScreen extends Screen {
         return false;
     }
 
-    private void deleteAttributeModifier(int modifierIndex) {
-        if (selectedItem == null || currentRule == null
-                || modifierIndex < 0 || modifierIndex >= currentRule.getAttributes().size()) {
+    private void removeVisibleAttributeRow(VisibleAttributeRow row) {
+        if (selectedItem == null) {
             return;
         }
 
+        ensureCurrentRule();
         EditableItemRule rule = currentRule.copy();
-        EditableAttributeModifier removed = rule.getAttributes().remove(modifierIndex);
-        currentRule = rule.copy();
+        String key;
 
-        if (draftSource == DraftSource.MODIFIER) {
-            if (selectedModifierIndex == modifierIndex) {
+        if (row.modifier() != null && row.modifierIndex() >= 0 && row.modifierIndex() < rule.getAttributes().size()) {
+            EditableAttributeModifier removed = rule.getAttributes().remove(row.modifierIndex());
+            if (draftSource == DraftSource.MODIFIER && selectedModifierIndex == row.modifierIndex()) {
                 resetDraft();
-            } else if (selectedModifierIndex > modifierIndex) {
-                selectedModifierIndex--;
             }
+
+            String name = removed.getAttributeId() == null ? "attribute change" : attributeDisplayName(removed.getAttributeId());
+            status = "Deleting custom change: " + name;
+        } else if (row.baseAttribute() != null) {
+            BaseAttribute attr = row.baseAttribute();
+            key = visibleAttributeKey(attr.attributeId(), attr.operation(), EditableSlotType.STANDARD, attr.slot()).toLowerCase(Locale.ROOT);
+            rule.getAttributes().removeIf(existing -> existing != null
+                    && existing.getAttributeId() != null
+                    && existing.getAction() != EditableAttributeAction.REMOVE
+                    && visibleAttributeKey(existing.getAttributeId(), existing.getOperation(), existing.getSlotType(), existing.getSlot())
+                    .toLowerCase(Locale.ROOT).equals(key));
+            EditableAttributeModifier remove = new EditableAttributeModifier(
+                    attr.attributeId(),
+                    EditableAttributeAction.REMOVE,
+                    null,
+                    attr.operation(),
+                    EditableSlotType.STANDARD,
+                    attr.slot()
+            );
+            rule.getAttributes().add(remove);
+            if (draftSource == DraftSource.BASE && selectedBaseAttributeIndex == row.baseIndex()) {
+                resetDraft();
+            }
+
+            status = "Removing base attribute: " + attributeDisplayName(attr.attributeId());
+        } else {
+            return;
         }
 
-        String name = removed.getAttributeId() == null ? "attribute change" : attributeDisplayName(removed.getAttributeId());
-        status = "Deleting custom change: " + name;
         statusIsError = false;
         statusIsOk = false;
         EditorNetwork.INSTANCE.sendToServer(new C2SSaveItemRulePacket(EditorJsonPayloads.ruleToPayload(rule)));
+        currentRule = rule.copy();
         markLayoutDirty();
         updateWidgets();
     }
 
-    private boolean clickAttributeList(double mx, double my) {
-        if (layout == null || selectedItem == null || visibleAttributeRowCount() == 0) {
+    private boolean clickPendingModifierList(double mx, double my) {
+        if (layout == null || selectedItem == null) {
             return false;
         }
 
+        List<VisibleAttributeRow> rows = visibleAttributeRows();
         int top = attributesRowsTop(layout) - rightScroll;
         int row = ((int) my - top) / 20;
-        int maxRows = Math.min(visibleAttributeRowCount(), maxVisibleAttributeRows());
 
-        if (mx < layout.rightX() + 6 || mx > layout.rightX() + layout.rightW() - 6 || row < 0 || row >= maxRows) {
+        if (mx < layout.rightX() + 6 || mx > layout.rightX() + layout.rightW() - 6 || row < 0 || row >= rows.size()) {
             return false;
         }
 
-        int baseRows = Math.min(baseAttributes.size(), maxRows);
-        if (row < baseRows) {
-            selectedBaseAttributeIndex = row;
+        VisibleAttributeRow visible = rows.get(row);
+        if (visible.modifier() != null) {
+            selectedModifierIndex = visible.modifierIndex();
+            selectedBaseAttributeIndex = visible.baseIndex();
+            draftSource = DraftSource.MODIFIER;
+            loadModifierIntoDraft(visible.modifier());
+            status = "Attribute change selected.";
+        } else {
+            selectedBaseAttributeIndex = visible.baseIndex();
             selectedModifierIndex = -1;
             draftSource = DraftSource.BASE;
-            loadBaseAttributeIntoDraft(baseAttributes.get(row));
+            loadBaseAttributeIntoDraft(visible.baseAttribute());
             status = "Attribute loaded. Edit values and apply.";
-            statusIsError = false;
-            statusIsOk = false;
-            return true;
         }
-
-        int modifierIndex = row - baseRows;
-        if (currentRule != null && modifierIndex >= 0 && modifierIndex < currentRule.getAttributes().size()) {
-            selectedModifierIndex = modifierIndex;
-            selectedBaseAttributeIndex = -1;
-            draftSource = DraftSource.MODIFIER;
-            loadModifierIntoDraft(currentRule.getAttributes().get(modifierIndex));
-            status = "Attribute change selected.";
-            statusIsError = false;
-            statusIsOk = false;
-            return true;
-        }
-
-        return false;
-    }
-
-    private boolean clickBaseAttributeList(double mx, double my) {
-        if (layout == null || selectedItem == null || baseAttributes.isEmpty()) {
-            return false;
-        }
-
-        int top = baseRowsTop(layout) - rightScroll;
-        int row = ((int) my - top) / 18;
-        int maxRows = Math.min(baseAttributes.size(), layout.split() ? 6 : 4);
-
-        if (mx < layout.rightX() + 6 || mx > layout.rightX() + layout.rightW() - 6 || row < 0 || row >= maxRows) {
-            return false;
-        }
-
-        selectedBaseAttributeIndex = row;
-        selectedModifierIndex = -1;
-        draftSource = DraftSource.BASE;
-        loadBaseAttributeIntoDraft(baseAttributes.get(row));
-        status = "Base attribute loaded. Edit values and apply.";
-        statusIsError = false;
-        statusIsOk = false;
-        return true;
-    }
-
-    private boolean clickPendingModifierList(double mx, double my) {
-        if (layout == null || selectedItem == null || currentRule == null || currentRule.getAttributes().isEmpty()) {
-            return false;
-        }
-
-        int top = pendingRowsTop(layout) - rightScroll;
-        int row = ((int) my - top) / 20;
-        int maxRows = Math.min(currentRule.getAttributes().size(), layout.split() ? 8 : 5);
-
-        if (mx < layout.rightX() + 6 || mx > layout.rightX() + layout.rightW() - 6 || row < 0 || row >= maxRows) {
-            return false;
-        }
-
-        selectedModifierIndex = row;
-        selectedBaseAttributeIndex = -1;
-        draftSource = DraftSource.MODIFIER;
-        loadModifierIntoDraft(currentRule.getAttributes().get(row));
-        status = "Pending modifier selected.";
         statusIsError = false;
         statusIsOk = false;
         return true;
@@ -1478,13 +1461,8 @@ public final class AttributeModifyEditorScreen extends Screen {
         return attributesHeaderY(l) + SECTION_HEADER_H + 2;
     }
 
-    private int maxVisibleAttributeRows() {
-        return layout != null && layout.split() ? 12 : 8;
-    }
-
     private int visibleAttributeRowCount() {
-        int changes = currentRule == null ? 0 : currentRule.getAttributes().size();
-        return baseAttributes.size() + changes;
+        return visibleAttributeRows().size();
     }
 
     private boolean hasRuleOverrides() {
@@ -1494,40 +1472,27 @@ public final class AttributeModifyEditorScreen extends Screen {
     }
 
     private int baseHeaderY(EditorLayout l) {
-        int cy = changesRowsTop(l);
-        int changes = currentRule == null ? 0 : currentRule.getAttributes().size();
-        int changeRows = l.split() ? 8 : 5;
-        if (changes == 0) {
-            cy += 18;
-        } else {
-            cy += Math.min(changes, changeRows) * 20;
-            if (changes > changeRows) {
-                cy += 16;
-            }
-        }
-        return cy + 10;
+        return attributesRowsTop(l);
     }
 
     private int baseRowsTop(EditorLayout l) {
-        return baseHeaderY(l) + SECTION_HEADER_H + 2;
+        return attributesRowsTop(l);
     }
 
     private int changesHeaderY(EditorLayout l) {
-        int cy = l.rightY() + 6;
-        cy += SECTION_HEADER_H + 2 + 16;
-        return cy;
+        return attributesRowsTop(l);
     }
 
     private int changesRowsTop(EditorLayout l) {
-        return changesHeaderY(l) + SECTION_HEADER_H + 2;
+        return attributesRowsTop(l);
     }
 
     private int pendingHeaderY(EditorLayout l) {
-        return changesHeaderY(l);
+        return attributesRowsTop(l);
     }
 
     private int pendingRowsTop(EditorLayout l) {
-        return changesRowsTop(l);
+        return attributesRowsTop(l);
     }
 
     private void resetRuleToVanilla() {
@@ -1604,53 +1569,54 @@ public final class AttributeModifyEditorScreen extends Screen {
             setStatus("Select an item first.", true);
             return;
         }
-        if (!hasActiveDraft()) {
-            setStatus("Select an attribute row or use + ADD first.", true);
-            return;
-        }
 
         ensureCurrentRule();
+        EditableItemRule rule = currentRule.copy();
 
-        String rawAttribute = attributeBox.getValue().trim();
-        if (rawAttribute.isBlank()) {
-            setStatus("No attribute selected.", true);
-            return;
-        }
-
-        ResourceLocation attributeId = ResourceLocation.tryParse(rawAttribute);
-        if (attributeId == null) {
-            setStatus("Invalid attribute ID format.", true);
-            return;
-        }
-
-        Double amount = null;
-        if (action != EditableAttributeAction.REMOVE) {
-            try {
-                amount = Double.parseDouble(amountBox.getValue().trim());
-            } catch (NumberFormatException e) {
-                setStatus("Amount must be a number.", true);
+        if (hasActiveDraft()) {
+            String rawAttribute = attributeBox.getValue().trim();
+            if (rawAttribute.isBlank()) {
+                setStatus("No attribute selected.", true);
                 return;
             }
-        }
 
-        EditableAttributeModifier edited = new EditableAttributeModifier(
-                attributeId,
-                action,
-                amount,
-                operation,
-                EditableSlotType.STANDARD,
-                slot
-        );
+            ResourceLocation attributeId = ResourceLocation.tryParse(rawAttribute);
+            if (attributeId == null) {
+                setStatus("Invalid attribute ID format.", true);
+                return;
+            }
 
-        EditableItemRule rule = currentRule.copy();
-        int targetIndex = selectedModifierIndex;
+            Double amount = null;
+            if (action != EditableAttributeAction.REMOVE) {
+                try {
+                    amount = Double.parseDouble(amountBox.getValue().trim());
+                } catch (NumberFormatException e) {
+                    setStatus("Amount must be a number.", true);
+                    return;
+                }
+            }
 
-        if (draftSource == DraftSource.MODIFIER && targetIndex >= 0 && targetIndex < rule.getAttributes().size()) {
-            rule.getAttributes().set(targetIndex, edited);
-        } else {
-            rule.getAttributes().removeIf(existing -> edited.duplicateKey().equalsIgnoreCase(existing.duplicateKey()));
-            rule.getAttributes().add(edited);
-            targetIndex = rule.getAttributes().size() - 1;
+            EditableAttributeModifier edited = new EditableAttributeModifier(
+                    attributeId,
+                    action,
+                    amount,
+                    operation,
+                    EditableSlotType.STANDARD,
+                    slot
+            );
+
+            int targetIndex = selectedModifierIndex;
+            if (draftSource == DraftSource.MODIFIER && targetIndex >= 0 && targetIndex < rule.getAttributes().size()) {
+                rule.getAttributes().set(targetIndex, edited);
+            } else {
+                rule.getAttributes().removeIf(existing -> edited.duplicateKey().equalsIgnoreCase(existing.duplicateKey()));
+                rule.getAttributes().add(edited);
+                targetIndex = rule.getAttributes().size() - 1;
+            }
+
+            selectedModifierIndex = clamp(targetIndex, 0, Math.max(0, rule.getAttributes().size() - 1));
+            selectedBaseAttributeIndex = -1;
+            draftSource = DraftSource.MODIFIER;
         }
 
         if (!durabilityBox.getValue().isBlank()) {
@@ -1665,9 +1631,6 @@ public final class AttributeModifyEditorScreen extends Screen {
         }
 
         currentRule = rule.copy();
-        selectedModifierIndex = clamp(targetIndex, 0, Math.max(0, currentRule.getAttributes().size() - 1));
-        selectedBaseAttributeIndex = -1;
-        draftSource = DraftSource.MODIFIER;
         status = "Saving...";
         statusIsError = false;
         statusIsOk = false;
@@ -1888,6 +1851,8 @@ public final class AttributeModifyEditorScreen extends Screen {
     private void updateWidgets() {
         boolean activeDraft = hasActiveDraft();
         boolean amountEnabled = activeDraft && action != EditableAttributeAction.REMOVE;
+        boolean durabilityEnabled = selectedItem != null && selectedItem.damageable();
+        boolean applyEnabled = activeDraft || durabilityEnabled;
 
         if (attributeBox != null) {
             attributeBox.active = activeDraft;
@@ -1898,8 +1863,8 @@ public final class AttributeModifyEditorScreen extends Screen {
             amountBox.visible = activeDraft;
         }
         if (durabilityBox != null) {
-            durabilityBox.active = activeDraft;
-            durabilityBox.visible = activeDraft;
+            durabilityBox.active = durabilityEnabled;
+            durabilityBox.visible = durabilityEnabled;
         }
         if (attributePickerButton != null) {
             attributePickerButton.active = false;
@@ -1910,7 +1875,7 @@ public final class AttributeModifyEditorScreen extends Screen {
             attributeSearchBox.visible = activeDraft && openDropdown == OpenDropdown.ATTRIBUTE;
         }
         if (applyButton != null) {
-            applyButton.active = activeDraft;
+            applyButton.active = applyEnabled;
             applyButton.visible = true;
         }
         if (closeButton != null) {
@@ -2245,7 +2210,7 @@ public final class AttributeModifyEditorScreen extends Screen {
                 return i;
             }
         }
-        return 0;
+        return -1;
     }
 
     private int indexOfOperation(EditableOperationType value) {
@@ -2351,25 +2316,67 @@ public final class AttributeModifyEditorScreen extends Screen {
 
     private int measureRightContentHeight() {
         int h = 6 + SECTION_HEADER_H + 2;
+        int rowCount = visibleAttributeRows().size();
 
-        int total = visibleAttributeRowCount();
-        int maxRows = maxVisibleAttributeRows();
-        if (total == 0) {
+        if (rowCount == 0) {
             h += 18;
         } else {
-            h += Math.min(total, maxRows) * 20;
-            if (total > maxRows) {
-                h += 16;
-            }
+            h += rowCount * 20;
         }
 
-        if (currentRule != null && currentRule.getDurability() != null && currentRule.getDurability().getDurability() != null) {
-            h += 24;
+        if (selectedItem != null) {
+            h += SECTION_HEADER_H + 2 + font.lineHeight + 6 + CONTROL_H + 6;
         }
         if (externalConflict) {
             h += 28;
         }
         return h + 12;
+    }
+
+    private List<VisibleAttributeRow> visibleAttributeRows() {
+        List<VisibleAttributeRow> rows = new ArrayList<>();
+        if (baseAttributes.isEmpty() && (currentRule == null || currentRule.getAttributes().isEmpty())) {
+            return rows;
+        }
+
+        Map<String, VisibleAttributeRow> effective = new LinkedHashMap<>();
+        for (int i = 0; i < baseAttributes.size(); i++) {
+            BaseAttribute base = baseAttributes.get(i);
+            String key = visibleAttributeKey(base.attributeId(), base.operation(), EditableSlotType.STANDARD, base.slot())
+                    .toLowerCase(Locale.ROOT);
+            effective.put(key, new VisibleAttributeRow(i, -1, base, null));
+        }
+
+        if (currentRule != null) {
+            for (int i = 0; i < currentRule.getAttributes().size(); i++) {
+                EditableAttributeModifier modifier = currentRule.getAttributes().get(i);
+                if (modifier == null || modifier.getAttributeId() == null) {
+                    continue;
+                }
+
+                String key = visibleAttributeKey(modifier.getAttributeId(), modifier.getOperation(), modifier.getSlotType(), modifier.getSlot())
+                        .toLowerCase(Locale.ROOT);
+                if (modifier.getAction() == EditableAttributeAction.REMOVE) {
+                    effective.remove(key);
+                    continue;
+                }
+
+                VisibleAttributeRow existing = effective.get(key);
+                if (existing != null && existing.baseAttribute() != null) {
+                    effective.put(key, new VisibleAttributeRow(existing.baseIndex(), i, existing.baseAttribute(), modifier));
+                } else {
+                    effective.put(key, new VisibleAttributeRow(-1, i, null, modifier));
+                }
+            }
+        }
+
+        rows.addAll(effective.values());
+        return rows;
+    }
+
+    private String visibleAttributeKey(ResourceLocation attributeId, EditableOperationType operation, EditableSlotType slotType, String slot) {
+        return Objects.toString(attributeId, "") + "|" + Objects.toString(operation, "") + "|"
+                + Objects.toString(slotType, "") + "|" + Objects.toString(slot, "");
     }
 
     private int actionColW(int formW) {

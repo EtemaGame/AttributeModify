@@ -8,7 +8,6 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.LinkedHashSet;
@@ -25,11 +24,9 @@ public final class EditorBaseAttributeService {
             return attributes;
         }
 
-        ItemStack stack = item.getDefaultInstance();
         Set<String> seen = new LinkedHashSet<>();
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             addModifiers(attributes, seen, slot, item.getDefaultAttributeModifiers(slot));
-            addModifiers(attributes, seen, slot, stack.getAttributeModifiers(slot));
         }
         return attributes;
     }
