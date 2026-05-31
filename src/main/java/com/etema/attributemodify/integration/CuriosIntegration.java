@@ -22,7 +22,7 @@ public class CuriosIntegration {
                 Object handler = handlerClass.getDeclaredConstructor().newInstance();
                 MinecraftForge.EVENT_BUS.register(handler);
 
-                AttributeModify.LOGGER.info("Curios detected - event integration enabled successfully");
+                AttributeModify.LOGGER.debug("Curios detected - event integration enabled successfully");
             } catch (Exception e) {
                 AttributeModify.LOGGER.warn("Failed to initialize Curios integration: {}", e.getMessage());
                 curiosLoaded = false;

@@ -15,6 +15,7 @@ import net.minecraftforge.registries.ForgeRegistries;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -43,45 +44,45 @@ public class SyncAttributeDataPacket {
     }
 
     public static void encode(SyncAttributeDataPacket packet, FriendlyByteBuf buf) {
-        // Pre-filter standard attributes to get accurate count
-        List<Map.Entry<ResourceLocation, Map<EquipmentSlot, List<ItemAttributeDataManager.AttributeEntry>>> > validStandard = new ArrayList<>();
+        int standardCount = 0;
         for (var itemEntry : packet.standardAttributes.entrySet()) {
-            ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(itemEntry.getKey());
-            if (itemId != null) {
-                validStandard.add(Map.entry(itemId, itemEntry.getValue()));
+            if (ForgeRegistries.ITEMS.getKey(itemEntry.getKey()) != null) {
+                standardCount++;
             }
         }
 
-        buf.writeInt(validStandard.size());
-        for (var itemEntry : validStandard) {
-            buf.writeResourceLocation(itemEntry.getKey());
+        buf.writeInt(standardCount);
+        for (var itemEntry : packet.standardAttributes.entrySet()) {
+            ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(itemEntry.getKey());
+            if (itemId == null) {
+                continue;
+            }
 
+            buf.writeResourceLocation(itemId);
             buf.writeInt(itemEntry.getValue().size());
             for (var slotEntry : itemEntry.getValue().entrySet()) {
                 buf.writeEnum(slotEntry.getKey());
 
-                List<ItemAttributeDataManager.AttributeEntry> filtered = new ArrayList<>();
-                List<ResourceLocation> attributeIds = new ArrayList<>();
+                int filteredCount = 0;
+                for (var attr : slotEntry.getValue()) {
+                    if (ForgeRegistries.ATTRIBUTES.getKey(attr.attribute()) != null) {
+                        filteredCount++;
+                    }
+                }
+
+                buf.writeInt(filteredCount);
                 for (var attr : slotEntry.getValue()) {
                     ResourceLocation attrId = ForgeRegistries.ATTRIBUTES.getKey(attr.attribute());
                     if (attrId == null) {
                         continue;
                     }
-                    filtered.add(attr);
-                    attributeIds.add(attrId);
-                }
 
-                buf.writeInt(filtered.size());
-                for (int i = 0; i < filtered.size(); i++) {
-                    var attr = filtered.get(i);
-                    ResourceLocation attrId = attributeIds.get(i);
                     buf.writeEnum(attr.action());
                     buf.writeResourceLocation(attrId);
 
                     if (attr.modifier() != null) {
                         buf.writeBoolean(true);
                         buf.writeUUID(attr.modifier().getId());
-                        // OPTIMIZED: Name field removed from packet
                         buf.writeDouble(attr.modifier().getAmount());
                         buf.writeEnum(attr.modifier().getOperation());
                     } else {
@@ -93,45 +94,45 @@ public class SyncAttributeDataPacket {
             }
         }
 
-        // Pre-filter curios attributes to get accurate count
-        List<Map.Entry<ResourceLocation, Map<String, List<ItemAttributeDataManager.AttributeEntry>>> > validCurios = new ArrayList<>();
+        int curiosCount = 0;
         for (var itemEntry : packet.curiosAttributes.entrySet()) {
-            ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(itemEntry.getKey());
-            if (itemId != null) {
-                validCurios.add(Map.entry(itemId, itemEntry.getValue()));
+            if (ForgeRegistries.ITEMS.getKey(itemEntry.getKey()) != null) {
+                curiosCount++;
             }
         }
 
-        buf.writeInt(validCurios.size());
-        for (var itemEntry : validCurios) {
-            buf.writeResourceLocation(itemEntry.getKey());
+        buf.writeInt(curiosCount);
+        for (var itemEntry : packet.curiosAttributes.entrySet()) {
+            ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(itemEntry.getKey());
+            if (itemId == null) {
+                continue;
+            }
 
+            buf.writeResourceLocation(itemId);
             buf.writeInt(itemEntry.getValue().size());
             for (var slotEntry : itemEntry.getValue().entrySet()) {
                 buf.writeUtf(slotEntry.getKey());
 
-                List<ItemAttributeDataManager.AttributeEntry> filtered = new ArrayList<>();
-                List<ResourceLocation> attributeIds = new ArrayList<>();
+                int filteredCount = 0;
+                for (var attr : slotEntry.getValue()) {
+                    if (ForgeRegistries.ATTRIBUTES.getKey(attr.attribute()) != null) {
+                        filteredCount++;
+                    }
+                }
+
+                buf.writeInt(filteredCount);
                 for (var attr : slotEntry.getValue()) {
                     ResourceLocation attrId = ForgeRegistries.ATTRIBUTES.getKey(attr.attribute());
                     if (attrId == null) {
                         continue;
                     }
-                    filtered.add(attr);
-                    attributeIds.add(attrId);
-                }
 
-                buf.writeInt(filtered.size());
-                for (int i = 0; i < filtered.size(); i++) {
-                    var attr = filtered.get(i);
-                    ResourceLocation attrId = attributeIds.get(i);
                     buf.writeEnum(attr.action());
                     buf.writeResourceLocation(attrId);
 
                     if (attr.modifier() != null) {
                         buf.writeBoolean(true);
                         buf.writeUUID(attr.modifier().getId());
-                        // OPTIMIZED: Name field removed from packet
                         buf.writeDouble(attr.modifier().getAmount());
                         buf.writeEnum(attr.modifier().getOperation());
                     } else {
@@ -143,18 +144,21 @@ public class SyncAttributeDataPacket {
             }
         }
 
-        // Pre-filter durability rules to get accurate count
-        List<Map.Entry<ResourceLocation, com.etema.attributemodify.durability.DurabilityRule>> validDurability = new ArrayList<>();
+        int durabilityCount = 0;
         for (var entry : packet.durabilityRules.entrySet()) {
-            ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(entry.getKey());
-            if (itemId != null) {
-                validDurability.add(Map.entry(itemId, entry.getValue()));
+            if (ForgeRegistries.ITEMS.getKey(entry.getKey()) != null) {
+                durabilityCount++;
             }
         }
 
-        buf.writeInt(validDurability.size());
-        for (var entry : validDurability) {
-            buf.writeResourceLocation(entry.getKey());
+        buf.writeInt(durabilityCount);
+        for (var entry : packet.durabilityRules.entrySet()) {
+            ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(entry.getKey());
+            if (itemId == null) {
+                continue;
+            }
+
+            buf.writeResourceLocation(itemId);
             buf.writeInt(entry.getValue().maxDurability());
             buf.writeUtf(entry.getValue().mode().name());
             buf.writeInt(entry.getValue().triggers().size());
@@ -163,18 +167,21 @@ public class SyncAttributeDataPacket {
             }
         }
 
-        // Pre-filter mining overrides to get accurate count
-        List<Map.Entry<ResourceLocation, List<ItemAttributeDataManager.MiningOverride>>> validMining = new ArrayList<>();
+        int miningCount = 0;
         for (var entry : packet.miningOverrides.entrySet()) {
-            ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(entry.getKey());
-            if (itemId != null) {
-                validMining.add(Map.entry(itemId, entry.getValue()));
+            if (ForgeRegistries.ITEMS.getKey(entry.getKey()) != null) {
+                miningCount++;
             }
         }
 
-        buf.writeInt(validMining.size());
-        for (var entry : validMining) {
-            buf.writeResourceLocation(entry.getKey());
+        buf.writeInt(miningCount);
+        for (var entry : packet.miningOverrides.entrySet()) {
+            ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(entry.getKey());
+            if (itemId == null) {
+                continue;
+            }
+
+            buf.writeResourceLocation(itemId);
             buf.writeInt(entry.getValue().size());
             for (var override : entry.getValue()) {
                 buf.writeBoolean(override.speed() != null);
@@ -189,17 +196,19 @@ public class SyncAttributeDataPacket {
             }
         }
 
-        // Filter decorative items
-        List<ResourceLocation> validDecorative = new ArrayList<>();
+        int decorativeCount = 0;
+        for (Item item : packet.decorativeItems) {
+            if (ForgeRegistries.ITEMS.getKey(item) != null) {
+                decorativeCount++;
+            }
+        }
+
+        buf.writeInt(decorativeCount);
         for (Item item : packet.decorativeItems) {
             ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(item);
             if (itemId != null) {
-                validDecorative.add(itemId);
+                buf.writeResourceLocation(itemId);
             }
-        }
-        buf.writeInt(validDecorative.size());
-        for (ResourceLocation loc : validDecorative) {
-            buf.writeResourceLocation(loc);
         }
     }
 
@@ -237,11 +246,11 @@ public class SyncAttributeDataPacket {
     }
 
     public static SyncAttributeDataPacket decode(FriendlyByteBuf buf) {
-        Map<Item, Map<EquipmentSlot, List<ItemAttributeDataManager.AttributeEntry>>> standard = new HashMap<>();
-        Map<Item, Map<String, List<ItemAttributeDataManager.AttributeEntry>>> curios = new HashMap<>();
-        Map<Item, com.etema.attributemodify.durability.DurabilityRule> durability = new HashMap<>();
+        Set<ResourceLocation> warnedMissingItems = new HashSet<>();
+        Set<ResourceLocation> warnedMissingAttributes = new HashSet<>();
 
         int standardSize = buf.readInt();
+        Map<Item, Map<EquipmentSlot, List<ItemAttributeDataManager.AttributeEntry>>> standard = new HashMap<>(standardSize);
         for (int i = 0; i < standardSize; i++) {
             ResourceLocation itemLoc = buf.readResourceLocation();
             Item item = ForgeRegistries.ITEMS.getValue(itemLoc);
@@ -250,14 +259,13 @@ public class SyncAttributeDataPacket {
             }
 
             int slotsSize = buf.readInt();
-            Map<EquipmentSlot, List<ItemAttributeDataManager.AttributeEntry>> slots = new EnumMap<>(
-                    EquipmentSlot.class);
+            Map<EquipmentSlot, List<ItemAttributeDataManager.AttributeEntry>> slots = new EnumMap<>(EquipmentSlot.class);
 
             for (int j = 0; j < slotsSize; j++) {
                 EquipmentSlot slot = buf.readEnum(EquipmentSlot.class);
 
                 int attrsSize = buf.readInt();
-                List<ItemAttributeDataManager.AttributeEntry> entries = new ArrayList<>();
+                List<ItemAttributeDataManager.AttributeEntry> entries = new ArrayList<>(attrsSize);
 
                 for (int k = 0; k < attrsSize; k++) {
                     ItemAttributeDataManager.AttributeAction action = buf
@@ -278,8 +286,10 @@ public class SyncAttributeDataPacket {
                     ItemAttributeDataManager.NbtCondition nbtCondition = decodeNbtCondition(buf);
 
                     if (attr == null) {
-                        AttributeModify.LOGGER.warn("Skipping unknown attribute {} while decoding standard slot {}",
-                                attrLoc, slot);
+                        if (warnedMissingAttributes.add(attrLoc)) {
+                            AttributeModify.LOGGER.warn("Skipping unknown attribute {} while decoding attribute data",
+                                    attrLoc);
+                        }
                         continue;
                     }
 
@@ -289,10 +299,14 @@ public class SyncAttributeDataPacket {
             }
             if (item != null) {
                 standard.put(item, slots);
+            } else if (warnedMissingItems.add(itemLoc)) {
+                AttributeModify.LOGGER.warn("Skipping unknown item {} while decoding standard attribute data",
+                        itemLoc);
             }
         }
 
         int curiosSize = buf.readInt();
+        Map<Item, Map<String, List<ItemAttributeDataManager.AttributeEntry>>> curios = new HashMap<>(curiosSize);
         for (int i = 0; i < curiosSize; i++) {
             ResourceLocation itemLoc = buf.readResourceLocation();
             Item item = ForgeRegistries.ITEMS.getValue(itemLoc);
@@ -301,13 +315,13 @@ public class SyncAttributeDataPacket {
             }
 
             int slotsSize = buf.readInt();
-            Map<String, List<ItemAttributeDataManager.AttributeEntry>> slots = new HashMap<>();
+            Map<String, List<ItemAttributeDataManager.AttributeEntry>> slots = new HashMap<>(slotsSize);
 
             for (int j = 0; j < slotsSize; j++) {
                 String slotName = buf.readUtf();
 
                 int attrsSize = buf.readInt();
-                List<ItemAttributeDataManager.AttributeEntry> entries = new ArrayList<>();
+                List<ItemAttributeDataManager.AttributeEntry> entries = new ArrayList<>(attrsSize);
 
                 for (int k = 0; k < attrsSize; k++) {
                     ItemAttributeDataManager.AttributeAction action = buf
@@ -328,7 +342,10 @@ public class SyncAttributeDataPacket {
                     ItemAttributeDataManager.NbtCondition nbtCondition = decodeNbtCondition(buf);
 
                     if (attr == null) {
-                        AttributeModify.LOGGER.warn("Skipping unknown attribute {} while decoding Curios slot {}", attrLoc, slotName);
+                        if (warnedMissingAttributes.add(attrLoc)) {
+                            AttributeModify.LOGGER.warn("Skipping unknown attribute {} while decoding attribute data",
+                                    attrLoc);
+                        }
                         continue;
                     }
 
@@ -338,10 +355,14 @@ public class SyncAttributeDataPacket {
             }
             if (item != null) {
                 curios.put(item, slots);
+            } else if (warnedMissingItems.add(itemLoc)) {
+                AttributeModify.LOGGER.warn("Skipping unknown item {} while decoding Curios attribute data",
+                        itemLoc);
             }
         }
 
         int durabilitySize = buf.readInt();
+        Map<Item, com.etema.attributemodify.durability.DurabilityRule> durability = new HashMap<>(durabilitySize);
         for (int i = 0; i < durabilitySize; i++) {
             ResourceLocation itemLoc = buf.readResourceLocation();
             Item item = ForgeRegistries.ITEMS.getValue(itemLoc);
@@ -349,12 +370,14 @@ public class SyncAttributeDataPacket {
             String modeStr = buf.readUtf();
             com.etema.attributemodify.durability.DurabilityMode mode = com.etema.attributemodify.durability.DurabilityMode.valueOf(modeStr);
             int triggerCount = buf.readInt();
-            Set<String> triggers = new LinkedHashSet<>();
+            Set<String> triggers = new LinkedHashSet<>(triggerCount);
             for (int triggerIndex = 0; triggerIndex < triggerCount; triggerIndex++) {
                 triggers.add(buf.readUtf());
             }
             if (item == null) {
-                AttributeModify.LOGGER.warn("Skipping unknown item {} while decoding durability rules", itemLoc);
+                if (warnedMissingItems.add(itemLoc)) {
+                    AttributeModify.LOGGER.warn("Skipping unknown item {} while decoding durability rules", itemLoc);
+                }
                 continue;
             }
             durability.put(item, new com.etema.attributemodify.durability.DurabilityRule(value, mode, triggers));
@@ -363,11 +386,12 @@ public class SyncAttributeDataPacket {
         Map<Item, List<ItemAttributeDataManager.MiningOverride>> mining = new HashMap<>();
         if (buf.isReadable()) {
             int miningSize = buf.readInt();
+            mining = new HashMap<>(miningSize);
             for (int i = 0; i < miningSize; i++) {
                 ResourceLocation itemLoc = buf.readResourceLocation();
                 Item item = ForgeRegistries.ITEMS.getValue(itemLoc);
                 int overrideCount = buf.readInt();
-                List<ItemAttributeDataManager.MiningOverride> overrides = new ArrayList<>();
+                List<ItemAttributeDataManager.MiningOverride> overrides = new ArrayList<>(overrideCount);
 
                 for (int j = 0; j < overrideCount; j++) {
                     Float speed = null;
@@ -391,6 +415,7 @@ public class SyncAttributeDataPacket {
         java.util.Set<Item> decorative = new java.util.HashSet<>();
         if (buf.isReadable()) {
             int decorativeSize = buf.readInt();
+            decorative = new java.util.HashSet<>(decorativeSize);
             for (int i = 0; i < decorativeSize; i++) {
                 ResourceLocation itemLoc = buf.readResourceLocation();
                 Item item = ForgeRegistries.ITEMS.getValue(itemLoc);

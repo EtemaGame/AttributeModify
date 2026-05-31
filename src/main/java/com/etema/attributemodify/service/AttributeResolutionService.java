@@ -3,9 +3,9 @@ package com.etema.attributemodify.service;
 import com.etema.attributemodify.ItemAttributeDataManager;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Service specialized in resolving which attribute rules apply to a specific item and slot context.
@@ -16,12 +16,24 @@ public class AttributeResolutionService {
      * Resolves and filters applicable attribute entries for a given item stack and slot.
      */
     public static List<ItemAttributeDataManager.AttributeEntry> resolveEntries(ItemStack stack, EquipmentSlot slot) {
-        ItemAttributeDataManager dataManager = ItemAttributeDataManager.getInstance();
-        return dataManager.getEntriesForSlot(stack.getItem(), slot)
-                .stream()
-                .filter(entry -> entry.attribute() != null)
-                .filter(entry -> entry.matches(stack))
-                .collect(Collectors.toList());
+        return resolveEntries(ItemAttributeDataManager.getInstance(), stack, slot);
+    }
+
+    public static List<ItemAttributeDataManager.AttributeEntry> resolveEntries(ItemAttributeDataManager dataManager,
+            ItemStack stack, EquipmentSlot slot) {
+        Collection<ItemAttributeDataManager.AttributeEntry> entries = dataManager.getEntriesForSlot(stack.getItem(),
+                slot);
+        if (entries.isEmpty()) {
+            return List.of();
+        }
+
+        List<ItemAttributeDataManager.AttributeEntry> matches = new ArrayList<>(entries.size());
+        for (ItemAttributeDataManager.AttributeEntry entry : entries) {
+            if (entry.attribute() != null && entry.matches(stack)) {
+                matches.add(entry);
+            }
+        }
+        return matches.isEmpty() ? List.of() : matches;
     }
 
     /**

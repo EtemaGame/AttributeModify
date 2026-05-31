@@ -79,6 +79,7 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
     public enum AttributeAction {
         ADD, // Añade modificadores encima de los vanilla (no los borra)
         MODIFY, // Reemplaza modificadores originales preservando UUID, nombre y orden
+        SET, // Ajusta el valor final exacto del atributo
         REMOVE; // Elimina el atributo por completo
 
         public static AttributeAction fromString(String actionName) {
@@ -88,6 +89,9 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
                     return ADD;
                 case "modify":
                     return MODIFY;
+                case "set":
+                case "exact":
+                    return SET;
                 case "remove":
                     return REMOVE;
                 default:
@@ -449,7 +453,7 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
             }
         }
         // Create summary line
-        LOGGER.info("AttributeModify - Loaded {} attribute files.", loadedFiles);
+        LOGGER.debug("AttributeModify - Loaded {} attribute files.", loadedFiles);
 
         int totalEntries = 0;
         for (Map.Entry<Item, Map<EquipmentSlot, List<AttributeEntry>>> itemEntry : itemAttributes.entrySet()) {
@@ -464,7 +468,7 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
             }
         }
 
-        LOGGER.info(
+        LOGGER.debug(
                 "  -> Details: {} items ({} attr), {} curios ({} attr), {} durability, {} quality, {} mining, {} decorative, {} deferred tags",
                 itemAttributes.size(), totalEntries, curiosAttributes.size(), totalCuriosEntries,
                 durabilityRules.size(), qualityConfigs.size(), miningOverrides.size(), decorativeItems.size(),
@@ -481,7 +485,7 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
             return;
         }
 
-        LOGGER.info("Resolving {} deferred tag entries...", deferredTagEntries.size());
+        LOGGER.debug("Resolving {} deferred tag entries...", deferredTagEntries.size());
         int resolved = 0;
 
         for (Map.Entry<String, JsonObject> deferred : deferredTagEntries) {
@@ -508,7 +512,7 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
         }
 
         if (resolved > 0) {
-            LOGGER.info("Resolved {}/{} deferred tag entries", resolved, deferredTagEntries.size());
+            LOGGER.debug("Resolved {}/{} deferred tag entries", resolved, deferredTagEntries.size());
         }
         deferredTagEntries.clear();
     }

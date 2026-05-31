@@ -2,13 +2,17 @@ package com.etema.attributemodify.service;
 
 import com.etema.attributemodify.AttributeModify;
 import com.etema.attributemodify.ItemAttributeDataManager;
+import com.google.common.collect.LinkedHashMultimap;
+import com.google.common.collect.Multimaps;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraftforge.event.ItemAttributeModifierEvent;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.lang.reflect.Field;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -25,9 +29,13 @@ public class AttributeApplicationService {
             return;
         }
 
-        List<java.util.Map.Entry<Attribute, AttributeModifier>> finalModifiers = new ArrayList<>(event.getModifiers().entries());
+        List<java.util.Map.Entry<Attribute, AttributeModifier>> finalModifiers = new ArrayList<>(event.getOriginalModifiers().entries());
 
         for (ItemAttributeDataManager.AttributeEntry entry : entries) {
+            if (entry.action() == ItemAttributeDataManager.AttributeAction.SET) {
+                continue;
+            }
+
             Attribute attribute = entry.attribute();
             if (attribute == null) continue;
 
@@ -35,30 +43,76 @@ public class AttributeApplicationService {
                 case REMOVE -> finalModifiers.removeIf(e -> e.getKey().equals(attribute));
                 case MODIFY -> applyModifyRule(event, attribute, entry.modifier(), finalModifiers);
                 case ADD -> applyAddRule(event, attribute, entry.modifier(), finalModifiers);
+                case SET -> {
+                    // handled in the second pass
+                }
             }
         }
 
-        event.clearModifiers();
-        for (java.util.Map.Entry<Attribute, AttributeModifier> e : finalModifiers) {
-            try {
-                event.addModifier(e.getKey(), e.getValue());
-            } catch (Exception ex) {
-                AttributeModify.LOGGER.error("[apply] Failed to apply {} on {} in slot {}: {}",
-                        e.getKey().getDescriptionId(), event.getItemStack().getItem(), event.getSlotType(), ex.getMessage(), ex);
+        for (ItemAttributeDataManager.AttributeEntry entry : entries) {
+            if (entry.action() != ItemAttributeDataManager.AttributeAction.SET) {
+                continue;
+            }
+
+            Attribute attribute = entry.attribute();
+            if (attribute == null) {
+                continue;
+            }
+
+            applySetRule(event, attribute, entry.modifier(), finalModifiers);
+        }
+
+        installOrderedModifiers(event, finalModifiers);
+    }
+
+    private static void installOrderedModifiers(ItemAttributeModifierEvent event,
+            List<java.util.Map.Entry<Attribute, AttributeModifier>> finalModifiers) {
+        LinkedHashMultimap<Attribute, AttributeModifier> ordered = buildOrderedModifiers(finalModifiers);
+
+        try {
+            setPrivateField(event, "modifiableModifiers", ordered);
+            setPrivateField(event, "unmodifiableModifiers", Multimaps.unmodifiableMultimap(ordered));
+        } catch (ReflectiveOperationException ex) {
+            AttributeModify.LOGGER.warn("[apply] Could not preserve attribute order for {} in slot {}: {}",
+                    event.getItemStack().getItem(), event.getSlotType(), ex.getMessage());
+
+            event.clearModifiers();
+            for (java.util.Map.Entry<Attribute, AttributeModifier> e : finalModifiers) {
+                try {
+                    event.addModifier(e.getKey(), e.getValue());
+                } catch (Exception addEx) {
+                    AttributeModify.LOGGER.error("[apply] Failed to apply {} on {} in slot {}: {}",
+                            e.getKey().getDescriptionId(), event.getItemStack().getItem(), event.getSlotType(), addEx.getMessage(), addEx);
+                }
             }
         }
     }
 
+    static LinkedHashMultimap<Attribute, AttributeModifier> buildOrderedModifiers(
+            List<java.util.Map.Entry<Attribute, AttributeModifier>> finalModifiers) {
+        LinkedHashMultimap<Attribute, AttributeModifier> ordered = LinkedHashMultimap.create();
+        for (java.util.Map.Entry<Attribute, AttributeModifier> entry : finalModifiers) {
+            ordered.put(entry.getKey(), entry.getValue());
+        }
+        return ordered;
+    }
+
+    private static void setPrivateField(Object target, String fieldName, Object value) throws ReflectiveOperationException {
+        Field field = target.getClass().getDeclaredField(fieldName);
+        field.setAccessible(true);
+        field.set(target, value);
+    }
+
     private static void applyModifyRule(ItemAttributeModifierEvent event, Attribute attribute, AttributeModifier dataModifier, List<java.util.Map.Entry<Attribute, AttributeModifier>> finalModifiers) {
         if (dataModifier == null) {
-            AttributeModify.LOGGER.warn("[apply] MODIFY {} on {} in slot {} was ignored because the datapack modifier is null",
+            AttributeModify.LOGGER.debug("[apply] MODIFY {} on {} in slot {} was ignored because the datapack modifier is null",
                     attribute.getDescriptionId(), event.getItemStack().getItem(), event.getSlotType());
             return;
         }
 
         Collection<AttributeModifier> originalModifiers = event.getOriginalModifiers().get(attribute);
         if (originalModifiers.isEmpty()) {
-            AttributeModify.LOGGER.warn("[semantic] MODIFY {} on {} in slot {} found no original item modifier to replace",
+            AttributeModify.LOGGER.debug("[semantic] MODIFY {} on {} in slot {} found no original item modifier to replace",
                     attribute.getDescriptionId(), event.getItemStack().getItem(), event.getSlotType());
             return;
         }
@@ -83,14 +137,14 @@ public class AttributeApplicationService {
         }
 
         if (!anyModified) {
-            AttributeModify.LOGGER.warn("[semantic] MODIFY {} on {} in slot {} found modifiers, but none matched the original item identity",
+            AttributeModify.LOGGER.debug("[semantic] MODIFY {} on {} in slot {} found modifiers, but none matched the original item identity",
                     attribute.getDescriptionId(), event.getItemStack().getItem(), event.getSlotType());
         }
     }
 
     private static void applyAddRule(ItemAttributeModifierEvent event, Attribute attribute, AttributeModifier dataModifier, List<java.util.Map.Entry<Attribute, AttributeModifier>> finalModifiers) {
         if (dataModifier == null) {
-            AttributeModify.LOGGER.warn("[apply] ADD {} on {} in slot {} was ignored because the datapack modifier is null",
+            AttributeModify.LOGGER.debug("[apply] ADD {} on {} in slot {} was ignored because the datapack modifier is null",
                     attribute.getDescriptionId(), event.getItemStack().getItem(), event.getSlotType());
             return;
         }
@@ -126,5 +180,51 @@ public class AttributeApplicationService {
         if (!merged) {
             finalModifiers.add(java.util.Map.entry(attribute, dataModifier));
         }
+    }
+
+    private static void applySetRule(ItemAttributeModifierEvent event, Attribute attribute, AttributeModifier dataModifier,
+            List<java.util.Map.Entry<Attribute, AttributeModifier>> finalModifiers) {
+        if (dataModifier == null) {
+            AttributeModify.LOGGER.debug("[apply] SET {} on {} in slot {} was ignored because the datapack modifier is null",
+                    attribute.getDescriptionId(), event.getItemStack().getItem(), event.getSlotType());
+            return;
+        }
+
+        double amount = exactSetAmount(dataModifier.getAmount(), attribute.getDefaultValue());
+        AttributeModifier replacement = new AttributeModifier(
+                dataModifier.getId(),
+                dataModifier.getName(),
+                amount,
+                AttributeModifier.Operation.ADDITION);
+        replaceAttributePreservingOrder(finalModifiers, attribute, replacement);
+    }
+
+    static <T> void replaceAttributePreservingOrder(List<java.util.Map.Entry<T, AttributeModifier>> modifiers,
+            T key, AttributeModifier replacement) {
+        int firstIndex = -1;
+        for (int i = 0; i < modifiers.size(); i++) {
+            if (Objects.equals(modifiers.get(i).getKey(), key)) {
+                if (firstIndex < 0) {
+                    firstIndex = i;
+                }
+            }
+        }
+
+        if (firstIndex < 0) {
+            modifiers.add(java.util.Map.entry(key, replacement));
+            return;
+        }
+
+        for (int i = modifiers.size() - 1; i >= 0; i--) {
+            if (Objects.equals(modifiers.get(i).getKey(), key)) {
+                modifiers.remove(i);
+            }
+        }
+
+        modifiers.add(firstIndex, java.util.Map.entry(key, replacement));
+    }
+
+    static double exactSetAmount(double targetValue, double defaultValue) {
+        return targetValue - defaultValue;
     }
 }

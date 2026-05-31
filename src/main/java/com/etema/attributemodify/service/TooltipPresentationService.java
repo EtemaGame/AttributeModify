@@ -5,6 +5,7 @@ import com.etema.attributemodify.util.AttributeTooltipHelper;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
@@ -45,6 +46,7 @@ public class TooltipPresentationService {
             return;
         }
 
+        rewriteExactAttributes(tooltip, rulesBySlot);
         removeHiddenAttributes(tooltip, rulesBySlot);
         addMissingNewAttributes(itemStack, tooltip, rulesBySlot);
     }
@@ -66,7 +68,9 @@ public class TooltipPresentationService {
                     continue;
                 }
 
-                if (entry.action() == ItemAttributeDataManager.AttributeAction.ADD && entry.modifier() != null) {
+                if ((entry.action() == ItemAttributeDataManager.AttributeAction.ADD
+                        || entry.action() == ItemAttributeDataManager.AttributeAction.SET)
+                        && entry.modifier() != null) {
                     slotRules.add(new AttributeInfo(entry.attribute(), entry.modifier(), entry.action()));
                 }
             }
@@ -117,6 +121,38 @@ public class TooltipPresentationService {
         }
     }
 
+    private static void rewriteExactAttributes(List<Component> tooltip, Map<EquipmentSlot, List<AttributeInfo>> rulesBySlot) {
+        EquipmentSlot currentSlot = null;
+
+        for (int i = 0; i < tooltip.size(); i++) {
+            Component line = tooltip.get(i);
+            EquipmentSlot detectedSlot = detectSlotHeader(line);
+            if (detectedSlot != null) {
+                currentSlot = detectedSlot;
+                continue;
+            }
+
+            if (currentSlot == null || !rulesBySlot.containsKey(currentSlot)) {
+                continue;
+            }
+
+            TooltipLineInfo lineInfo = extractTooltipLineInfo(line);
+            if (lineInfo == null) {
+                continue;
+            }
+
+            for (AttributeInfo info : rulesBySlot.get(currentSlot)) {
+                if (info.action() != ItemAttributeDataManager.AttributeAction.SET
+                        || !lineMatchesAttribute(lineInfo, info.attribute())) {
+                    continue;
+                }
+
+                tooltip.set(i, createExactAttributeLine(info, currentSlot));
+                break;
+            }
+        }
+    }
+
     private static void addMissingNewAttributes(ItemStack itemStack, List<Component> tooltip,
             Map<EquipmentSlot, List<AttributeInfo>> rulesBySlot) {
         TooltipScan scan = scanRenderedAttributes(tooltip, rulesBySlot);
@@ -126,8 +162,10 @@ public class TooltipPresentationService {
 
             for (AttributeInfo info : slotEntry.getValue()) {
                 if (info.action() != ItemAttributeDataManager.AttributeAction.ADD
+                        && info.action() != ItemAttributeDataManager.AttributeAction.SET
                         || info.modifier() == null
-                        || hasVanillaAttribute(itemStack.getItem(), slot, info.attribute())) {
+                        || (info.action() == ItemAttributeDataManager.AttributeAction.ADD
+                            && hasVanillaAttribute(itemStack.getItem(), slot, info.attribute()))) {
                     continue;
                 }
 
@@ -198,6 +236,19 @@ public class TooltipPresentationService {
                 modifier.getOperation(),
                 slot,
                 true,
+                info.attribute());
+    }
+
+    private static Component createExactAttributeLine(AttributeInfo info, EquipmentSlot slot) {
+        AttributeModifier modifier = info.modifier();
+        double exactValue = modifier.getAmount();
+        return AttributeTooltipHelper.createFormattedLine(
+                exactValue,
+                Component.translatable(info.attribute().getDescriptionId()),
+                modifier.getAmount(),
+                AttributeModifier.Operation.ADDITION,
+                slot,
+                false,
                 info.attribute());
     }
 
@@ -275,7 +326,7 @@ public class TooltipPresentationService {
             return null;
         }
 
-        return new TooltipLineInfo(extractTranslationKey(args[1]), extractRenderedText(args[1]));
+                return new TooltipLineInfo(extractTranslationKey(args[1]));
     }
 
     private static String extractTranslationKey(Object argument) {
@@ -295,25 +346,15 @@ public class TooltipPresentationService {
         return null;
     }
 
-    private static String extractRenderedText(Object argument) {
-        if (argument instanceof Component component) {
-            return component.getString();
-        }
-        return argument == null ? "" : String.valueOf(argument);
-    }
-
     private static boolean lineMatchesAttribute(TooltipLineInfo lineInfo, Attribute attribute) {
-        String expectedKey = attribute.getDescriptionId();
-        String expectedText = Component.translatable(expectedKey).getString();
-        return expectedKey.equals(lineInfo.attributeTranslationKey())
-                || expectedText.equals(lineInfo.attributeRenderedText());
+        return attribute.getDescriptionId().equals(lineInfo.attributeTranslationKey());
     }
 
     private record AttributeInfo(Attribute attribute, AttributeModifier modifier,
             ItemAttributeDataManager.AttributeAction action) {
     }
 
-    private record TooltipLineInfo(String attributeTranslationKey, String attributeRenderedText) {
+    private record TooltipLineInfo(String attributeTranslationKey) {
     }
 
     private record TooltipScan(Map<EquipmentSlot, Map<Attribute, Integer>> renderedCounts,

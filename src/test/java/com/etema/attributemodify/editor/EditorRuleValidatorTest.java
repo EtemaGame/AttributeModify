@@ -31,6 +31,24 @@ class EditorRuleValidatorTest {
         assertTrue(result.isValid(), () -> String.join(", ", result.errors()));
     }
 
+    @Test
+    void acceptsExactValueSetWithoutOperation() {
+        EditableItemRule rule = new EditableItemRule(id("minecraft:diamond_sword"), false);
+        EditableAttributeModifier modifier = new EditableAttributeModifier(
+                id("minecraft:generic.attack_damage"),
+                EditableAttributeAction.SET,
+                11.0,
+                null,
+                EditableSlotType.AUTO,
+                null);
+        modifier.setOperation(null);
+        rule.getAttributes().add(modifier);
+
+        EditableValidationResult result = validator().validate(rule);
+
+        assertTrue(result.isValid(), () -> String.join(", ", result.errors()));
+    }
+
     static EditorRuleValidator validator() {
         return new EditorRuleValidator(EditorValidationContext.simple(
                 Set.of(id("minecraft:diamond_sword")),

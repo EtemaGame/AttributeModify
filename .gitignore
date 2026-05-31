@@ -3,6 +3,7 @@ build
 bin
 run
 out
+logs/
 *.log
 .DS_Store
 *.swp

@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class EditableRuleSerializationTest {
@@ -18,14 +19,14 @@ class EditableRuleSerializationTest {
                   "minecraft:diamond_sword": {
                     "equipment_slots": {
                       "mainhand": [
-                        {
-                          "attribute": "minecraft:generic.attack_damage",
-                          "action": "modify",
-                          "amount": 10.0,
-                          "operation": "addition",
-                          "modifier_id": "attributemodify:test_modifier",
-                          "uuid": "00000000-0000-0000-0000-000000000001",
-                          "nbt": {
+                          {
+                            "attribute": "minecraft:generic.attack_damage",
+                            "action": "modify",
+                            "amount": 10.0,
+                            "operation": "addition",
+                            "modifier_id": "attributemodify:test_modifier",
+                            "uuid": "00000000-0000-0000-0000-000000000001",
+                            "nbt": {
                             "path": "quality",
                             "operator": "equals",
                             "value": "legendary"
@@ -55,5 +56,34 @@ class EditableRuleSerializationTest {
         assertTrue(attribute.has("nbt"));
         assertEquals(2000, item.get("durability").getAsInt());
         assertEquals("melee_hit", item.getAsJsonArray("durability_triggers").get(0).getAsString());
+    }
+
+    @Test
+    void preservesExactSetActionWithoutOperation() {
+        JsonObject input = JsonParser.parseString("""
+                {
+                  "minecraft:diamond_sword": {
+                    "attributes": [
+                      {
+                        "attribute": "minecraft:generic.attack_damage",
+                        "action": "set",
+                        "amount": 11.0
+                      }
+                    ]
+                  }
+                }
+                """).getAsJsonObject();
+
+        List<EditableItemRule> rules = EditorRuleSerializer.fromDocument(input);
+        JsonObject output = EditorRuleSerializer.toDocument(rules);
+
+        JsonObject attribute = output.getAsJsonObject("minecraft:diamond_sword")
+                .getAsJsonArray("attributes")
+                .get(0)
+                .getAsJsonObject();
+
+        assertEquals("set", attribute.get("action").getAsString());
+        assertEquals(11.0, attribute.get("amount").getAsDouble());
+        assertFalse(attribute.has("operation"));
     }
 }

@@ -71,7 +71,7 @@ public final class EditorRuleValidator {
                 if (amount == null || !Double.isFinite(amount)) {
                     result.error("Attribute amount must be a finite number.");
                 }
-                if (attribute.getOperation() == null) {
+                if (action != EditableAttributeAction.SET && attribute.getOperation() == null) {
                     result.error("Attribute operation is invalid.");
                 }
             }

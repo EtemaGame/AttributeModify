@@ -108,6 +108,7 @@ public final class EditableAttributeModifier {
 
     public String duplicateKey() {
         return Objects.toString(attributeId, "") + "|" + Objects.toString(operation, "") + "|"
-                + Objects.toString(slotType, "") + "|" + Objects.toString(slot, "");
+                + Objects.toString(action, "") + "|" + Objects.toString(slotType, "") + "|"
+                + Objects.toString(slot, "");
     }
 }

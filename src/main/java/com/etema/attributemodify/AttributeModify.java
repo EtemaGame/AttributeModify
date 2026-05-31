@@ -32,7 +32,7 @@ public class AttributeModify {
         modEventBus.addListener(this::commonSetup);
 
         CuriosIntegration.initialize();
-        LOGGER.info("AttributeModify Initialized (Forge 1.20.1)");
+        LOGGER.debug("AttributeModify Initialized (Forge 1.20.1)");
     }
 
     private void commonSetup(FMLCommonSetupEvent event) {
@@ -40,14 +40,14 @@ public class AttributeModify {
             // ConfigHandler removed - using datapack-only mode
             NetworkHandler.register();
             EditorNetwork.register();
-            LOGGER.info("AttributeModify - Setup completed (datapack-only mode)");
+            LOGGER.debug("AttributeModify - Setup completed (datapack-only mode)");
         });
     }
 
     @SubscribeEvent
     public void onAddReloadListeners(AddReloadListenerEvent event) {
         event.addListener(ItemAttributeDataManager.getInstance());
-        LOGGER.info("AttributeModify - Datapack reload listener registered");
+        LOGGER.debug("AttributeModify - Datapack reload listener registered");
     }
 
     @SubscribeEvent

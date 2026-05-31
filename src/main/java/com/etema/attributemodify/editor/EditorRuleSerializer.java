@@ -198,7 +198,7 @@ public final class EditorRuleSerializer {
         if (action != EditableAttributeAction.REMOVE && attribute.getAmount() != null) {
             object.addProperty("amount", attribute.getAmount());
         }
-        if (action != EditableAttributeAction.REMOVE && attribute.getOperation() != null) {
+        if (action != EditableAttributeAction.REMOVE && action != EditableAttributeAction.SET && attribute.getOperation() != null) {
             object.addProperty("operation", attribute.getOperation().serializedName());
         }
         if (attribute.getModifierId() != null && !attribute.getModifierId().isBlank()) {

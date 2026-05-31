@@ -40,6 +40,10 @@ public class CuriosEventHandler {
                     .getEntriesForCuriosSlot(itemStack.getItem(), slotIdentifier);
 
             for (ItemAttributeDataManager.AttributeEntry entry : entries) {
+                if (entry.action() == ItemAttributeDataManager.AttributeAction.SET) {
+                    continue;
+                }
+
                 Attribute attribute = entry.attribute();
                 if (attribute == null)
                     continue;
@@ -68,6 +72,33 @@ public class CuriosEventHandler {
                                 // Log removed to reduce spam
                         }
                     }
+                    case SET -> {
+                        // handled in the second pass
+                    }
+                }
+            }
+
+            for (ItemAttributeDataManager.AttributeEntry entry : entries) {
+                if (entry.action() != ItemAttributeDataManager.AttributeAction.SET) {
+                    continue;
+                }
+
+                Attribute attribute = entry.attribute();
+                if (attribute == null || !entry.matches(itemStack)) {
+                    continue;
+                }
+
+                event.removeAttribute(attribute);
+                AttributeModifier modifier = entry.modifier();
+                if (modifier != null) {
+                    AttributeModifier exact = new AttributeModifier(
+                            modifier.getId(),
+                            modifier.getName(),
+                            modifier.getAmount() - attribute.getDefaultValue(),
+                            AttributeModifier.Operation.ADDITION
+                    );
+                    event.addModifier(attribute, makeCuriosInstanceUnique(exact, slotIdentifier, slotIndex));
+                        // Log removed to reduce spam
                 }
             }
 
