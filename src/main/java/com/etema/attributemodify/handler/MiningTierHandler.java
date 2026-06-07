@@ -2,6 +2,7 @@ package com.etema.attributemodify.handler;
 
 import com.etema.attributemodify.AttributeModify;
 import com.etema.attributemodify.ItemAttributeDataManager;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Tier;
 import net.minecraft.world.item.TieredItem;
@@ -74,17 +75,40 @@ public class MiningTierHandler {
     }
 
     public static Tier parseTier(String tierName) {
-        return switch (tierName.toLowerCase()) {
-            case "wood", "wooden" -> Tiers.WOOD;
-            case "stone" -> Tiers.STONE;
-            case "iron" -> Tiers.IRON;
-            case "diamond" -> Tiers.DIAMOND;
-            case "netherite" -> Tiers.NETHERITE;
-            case "gold", "golden" -> Tiers.GOLD;
-            default -> {
-                AttributeModify.LOGGER.warn("Unknown mining tier '{}', ignoring", tierName);
-                yield null;
-            }
+        ResourceLocation id = resolveTierId(tierName);
+        Tier tier = id == null ? null : TierSortingRegistry.byName(id);
+        if (tier == null) {
+            AttributeModify.LOGGER.warn("Unknown mining tier '{}', ignoring", tierName);
+        }
+        return tier;
+    }
+
+    public static ResourceLocation resolveTierId(String tierName) {
+        if (tierName == null || tierName.isBlank()) {
+            return null;
+        }
+
+        String normalized = tierName.trim().toLowerCase();
+        normalized = switch (normalized) {
+            case "wooden" -> "wood";
+            case "golden" -> "gold";
+            default -> normalized;
         };
+
+        ResourceLocation explicit = ResourceLocation.tryParse(normalized);
+        if (explicit != null && normalized.contains(":") && TierSortingRegistry.byName(explicit) != null) {
+            return explicit;
+        }
+
+        ResourceLocation minecraft = ResourceLocation.tryParse("minecraft:" + normalized);
+        if (minecraft != null && TierSortingRegistry.byName(minecraft) != null) {
+            return minecraft;
+        }
+
+        if (explicit != null && TierSortingRegistry.byName(explicit) != null) {
+            return explicit;
+        }
+
+        return null;
     }
 }

@@ -4,6 +4,7 @@ import com.etema.attributemodify.durability.DurabilityMode;
 import com.etema.attributemodify.durability.DurabilityRule;
 import com.etema.attributemodify.durability.DurabilityHelper;
 import com.etema.attributemodify.handler.MiningTierHandler;
+import com.etema.attributemodify.integration.AccessoriesIntegration;
 import com.etema.attributemodify.integration.CuriosIntegration;
 import com.google.gson.*;
 import com.mojang.logging.LogUtils;
@@ -595,13 +596,14 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
         // 2. Specific curios slots
         if (itemData.has("curios_slots") && itemData.get("curios_slots").isJsonObject()) {
             if (CuriosIntegration.shouldProcessCuriosSlots()) {
-                JsonObject curiosJson = itemData.getAsJsonObject("curios_slots");
-                for (Map.Entry<String, JsonElement> curiosEntry : curiosJson.entrySet()) {
-                    String curiosSlot = curiosEntry.getKey();
-                    if (curiosEntry.getValue().isJsonArray()) {
-                        curiosData.put(curiosSlot, parseAttributeEntries(item, curiosEntry.getValue().getAsJsonArray(), itemKey, curiosSlot));
-                    }
-                }
+                mergeSlotAttributeData(item, itemKey, itemData.getAsJsonObject("curios_slots"), curiosData);
+            }
+        }
+
+        // 2b. Accessories uses its own datapack key but shares the same logical slot map.
+        if (itemData.has("accessories_slots") && itemData.get("accessories_slots").isJsonObject()) {
+            if (AccessoriesIntegration.shouldProcessAccessoriesSlots()) {
+                mergeSlotAttributeData(item, itemKey, itemData.getAsJsonObject("accessories_slots"), curiosData);
             }
         }
 
@@ -646,6 +648,13 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
                 LOGGER.error("Error parsing durability for item {}: {}", getItemName(item), e.getMessage());
             }
         }
+
+        if (itemData.has("mining") && itemData.get("mining").isJsonArray()) {
+            List<MiningOverride> overrides = parseMiningOverrides(item, itemData.getAsJsonArray("mining"));
+            if (!overrides.isEmpty()) {
+                miningOverrides.put(item, List.copyOf(overrides));
+            }
+        }
     }
 
     private void processAutoSlotAttributes(Item item, JsonArray attributesArray,
@@ -675,6 +684,17 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
         }
 
         LOGGER.warn("Could not auto-detect slot for item {} with top-level 'attributes'", itemKey);
+    }
+
+    private void mergeSlotAttributeData(Item item, String itemKey, JsonObject slots,
+                                        Map<String, List<AttributeEntry>> slotData) {
+        for (Map.Entry<String, JsonElement> slotEntry : slots.entrySet()) {
+            String slot = slotEntry.getKey();
+            if (slotEntry.getValue().isJsonArray()) {
+                List<AttributeEntry> entries = parseAttributeEntries(item, slotEntry.getValue().getAsJsonArray(), itemKey, slot);
+                slotData.computeIfAbsent(slot, k -> new ArrayList<>()).addAll(entries);
+            }
+        }
     }
 
     private EquipmentSlot autoDetectSlot(Item item) {
@@ -901,6 +921,10 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
 
         List<AttributeEntry> entries = itemData.get(curiosSlot);
         return entries != null ? entries : java.util.Collections.emptyList();
+    }
+
+    public List<AttributeEntry> getEntriesForAccessoriesSlot(Item item, String accessoriesSlot) {
+        return getEntriesForCuriosSlot(item, accessoriesSlot);
     }
 
     public boolean hasCustomAttributes(Item item) {

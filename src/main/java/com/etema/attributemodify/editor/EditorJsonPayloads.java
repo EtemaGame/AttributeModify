@@ -40,12 +40,19 @@ public final class EditorJsonPayloads {
 
         root.add("equipmentSlots", stringArray(catalog.equipmentSlots()));
         root.add("curiosSlots", stringArray(catalog.curiosSlots()));
+        root.add("accessoriesSlots", stringArray(catalog.accessoriesSlots()));
         root.add("namespaces", stringArray(catalog.namespaces()));
 
         JsonArray tags = new JsonArray();
         catalog.itemTags().forEach(tag -> tags.add(tag.toString()));
         root.add("itemTags", tags);
+
+        JsonArray miningTiers = new JsonArray();
+        catalog.miningTiers().forEach(tier -> miningTiers.add(tier.toString()));
+        root.add("miningTiers", miningTiers);
+
         root.addProperty("curiosLoaded", catalog.curiosLoaded());
+        root.addProperty("accessoriesLoaded", catalog.accessoriesLoaded());
         return root;
     }
 

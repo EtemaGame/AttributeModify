@@ -41,3 +41,10 @@ mandatory=false
 versionRange="${curios_version_range}"
 ordering="AFTER"
 side="BOTH"
+
+[[dependencies.attributemodify]]
+modId="accessories"
+mandatory=false
+versionRange="${accessories_version_range}"
+ordering="AFTER"
+side="BOTH"

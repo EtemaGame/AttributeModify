@@ -1,10 +1,12 @@
 package com.etema.attributemodify.editor;
 
 import com.etema.attributemodify.durability.DurabilityRule;
+import com.etema.attributemodify.handler.MiningTierHandler;
 import com.etema.attributemodify.editor.model.EditableAttributeAction;
 import com.etema.attributemodify.editor.model.EditableAttributeModifier;
 import com.etema.attributemodify.editor.model.EditableDurabilityModifier;
 import com.etema.attributemodify.editor.model.EditableItemRule;
+import com.etema.attributemodify.editor.model.EditableMiningOverride;
 import com.etema.attributemodify.editor.model.EditableSlotType;
 import com.etema.attributemodify.editor.model.EditableValidationResult;
 import com.google.gson.JsonObject;
@@ -35,6 +37,7 @@ public final class EditorRuleValidator {
 
         validateAttributes(rule, result);
         validateDurability(rule.getDurability(), result);
+        validateMining(rule, result);
 
         if (result.isValid()) {
             try {
@@ -103,6 +106,9 @@ public final class EditorRuleValidator {
         if (slotType == EditableSlotType.CURIOS && !context.hasCuriosSlot(slot)) {
             result.error("Invalid Curios slot or Curios is not available: " + slot);
         }
+        if (slotType == EditableSlotType.ACCESSORIES && !context.hasAccessoriesSlot(slot)) {
+            result.error("Invalid Accessories slot or Accessories is not available: " + slot);
+        }
     }
 
     private void validateDurability(EditableDurabilityModifier durability, EditableValidationResult result) {
@@ -120,5 +126,32 @@ public final class EditorRuleValidator {
                 result.error("Unsupported durability trigger: " + trigger);
             }
         }
+    }
+
+    private void validateMining(EditableItemRule rule, EditableValidationResult result) {
+        for (EditableMiningOverride override : rule.getMiningOverrides()) {
+            if (override == null) {
+                result.error("Mining override is missing.");
+                continue;
+            }
+
+            boolean hasSpeed = override.getSpeed() != null;
+            boolean hasTier = override.getTier() != null && !override.getTier().isBlank();
+            if (!hasSpeed && !hasTier) {
+                result.error("Mining override must define speed, tier, or both.");
+            }
+
+            if (hasSpeed && (!Float.isFinite(override.getSpeed()) || override.getSpeed() < 0.0f)) {
+                result.error("Mining speed must be a finite non-negative number.");
+            }
+
+            if (hasTier && !isSupportedMiningTier(override.getTier())) {
+                result.error("Unsupported mining tier: " + override.getTier());
+            }
+        }
+    }
+
+    private boolean isSupportedMiningTier(String tier) {
+        return context.hasMiningTier(MiningTierHandler.resolveTierId(tier));
     }
 }

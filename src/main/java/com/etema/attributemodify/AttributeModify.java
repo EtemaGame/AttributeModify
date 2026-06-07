@@ -1,6 +1,7 @@
 package com.etema.attributemodify;
 
 import com.etema.attributemodify.handler.*;
+import com.etema.attributemodify.integration.AccessoriesIntegration;
 import com.etema.attributemodify.integration.CuriosIntegration;
 import com.etema.attributemodify.editor.network.EditorNetwork;
 import com.etema.attributemodify.network.NetworkHandler;
@@ -32,6 +33,7 @@ public class AttributeModify {
         modEventBus.addListener(this::commonSetup);
 
         CuriosIntegration.initialize();
+        AccessoriesIntegration.initialize();
         LOGGER.debug("AttributeModify Initialized (Forge 1.20.1)");
     }
 

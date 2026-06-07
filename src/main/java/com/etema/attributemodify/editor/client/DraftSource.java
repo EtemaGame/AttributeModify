@@ -4,5 +4,7 @@ enum DraftSource {
     NONE,
     BASE,
     MODIFIER,
-    REGISTRY
+    REGISTRY,
+    DURABILITY,
+    MINING
 }

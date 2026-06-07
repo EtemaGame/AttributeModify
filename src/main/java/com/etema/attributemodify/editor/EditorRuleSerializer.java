@@ -5,6 +5,7 @@ import com.etema.attributemodify.editor.model.EditableAttributeModifier;
 import com.etema.attributemodify.editor.model.EditableCondition;
 import com.etema.attributemodify.editor.model.EditableDurabilityModifier;
 import com.etema.attributemodify.editor.model.EditableItemRule;
+import com.etema.attributemodify.editor.model.EditableMiningOverride;
 import com.etema.attributemodify.editor.model.EditableOperationType;
 import com.etema.attributemodify.editor.model.EditableSlotType;
 import com.google.gson.JsonArray;
@@ -70,6 +71,15 @@ public final class EditorRuleSerializer {
             }
         }
 
+        if (itemObject.has("accessories_slots") && itemObject.get("accessories_slots").isJsonObject()) {
+            JsonObject slots = itemObject.getAsJsonObject("accessories_slots");
+            for (Map.Entry<String, JsonElement> slotEntry : slots.entrySet()) {
+                if (slotEntry.getValue().isJsonArray()) {
+                    readAttributeArray(rule, slotEntry.getValue().getAsJsonArray(), EditableSlotType.ACCESSORIES, slotEntry.getKey());
+                }
+            }
+        }
+
         if (itemObject.has("attributes") && itemObject.get("attributes").isJsonArray()) {
             readAttributeArray(rule, itemObject.getAsJsonArray("attributes"), EditableSlotType.AUTO, null);
         }
@@ -84,6 +94,22 @@ public final class EditorRuleSerializer {
             EditableDurabilityModifier durability = new EditableDurabilityModifier(itemObject.get("durability").getAsInt());
             readDurabilityTriggers(durability, itemObject);
             rule.setDurability(durability);
+        }
+
+        if (itemObject.has("mining") && itemObject.get("mining").isJsonArray()) {
+            for (JsonElement element : itemObject.getAsJsonArray("mining")) {
+                if (!element.isJsonObject()) {
+                    continue;
+                }
+                JsonObject object = element.getAsJsonObject();
+                Float speed = object.has("speed") && object.get("speed").isJsonPrimitive()
+                        ? object.get("speed").getAsFloat()
+                        : null;
+                String tier = object.has("tier") && object.get("tier").isJsonPrimitive()
+                        ? object.get("tier").getAsString()
+                        : null;
+                rule.getMiningOverrides().add(new EditableMiningOverride(speed, tier));
+            }
         }
 
         return rule;
@@ -108,6 +134,7 @@ public final class EditorRuleSerializer {
         JsonObject itemObject = new JsonObject();
         JsonObject equipmentSlots = new JsonObject();
         JsonObject curiosSlots = new JsonObject();
+        JsonObject accessoriesSlots = new JsonObject();
         JsonArray autoAttributes = new JsonArray();
 
         for (EditableAttributeModifier attribute : rule.getAttributes()) {
@@ -126,6 +153,11 @@ public final class EditorRuleSerializer {
                 JsonArray slotArray = curiosSlots.has(slot) ? curiosSlots.getAsJsonArray(slot) : new JsonArray();
                 slotArray.add(attributeObject);
                 curiosSlots.add(slot, slotArray);
+            } else if (attribute.getSlotType() == EditableSlotType.ACCESSORIES) {
+                String slot = blankToDefault(attribute.getSlot(), "accessory");
+                JsonArray slotArray = accessoriesSlots.has(slot) ? accessoriesSlots.getAsJsonArray(slot) : new JsonArray();
+                slotArray.add(attributeObject);
+                accessoriesSlots.add(slot, slotArray);
             } else {
                 autoAttributes.add(attributeObject);
             }
@@ -136,6 +168,9 @@ public final class EditorRuleSerializer {
         }
         if (curiosSlots.size() > 0) {
             itemObject.add("curios_slots", curiosSlots);
+        }
+        if (accessoriesSlots.size() > 0) {
+            itemObject.add("accessories_slots", accessoriesSlots);
         }
         if (autoAttributes.size() > 0) {
             itemObject.add("attributes", autoAttributes);
@@ -150,6 +185,27 @@ public final class EditorRuleSerializer {
                     triggers.add(trigger);
                 }
                 itemObject.add("durability_triggers", triggers);
+            }
+        }
+
+        if (!rule.getMiningOverrides().isEmpty()) {
+            JsonArray mining = new JsonArray();
+            for (EditableMiningOverride override : rule.getMiningOverrides()) {
+                if (override == null || (override.getSpeed() == null
+                        && (override.getTier() == null || override.getTier().isBlank()))) {
+                    continue;
+                }
+                JsonObject object = new JsonObject();
+                if (override.getSpeed() != null) {
+                    object.addProperty("speed", override.getSpeed());
+                }
+                if (override.getTier() != null && !override.getTier().isBlank()) {
+                    object.addProperty("tier", override.getTier().trim().toLowerCase());
+                }
+                mining.add(object);
+            }
+            if (mining.size() > 0) {
+                itemObject.add("mining", mining);
             }
         }
 

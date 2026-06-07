@@ -4,7 +4,9 @@ import com.etema.attributemodify.editor.EditorClientState;
 import com.etema.attributemodify.editor.EditorJsonPayloads;
 import com.etema.attributemodify.editor.model.EditableAttributeAction;
 import com.etema.attributemodify.editor.model.EditableAttributeModifier;
+import com.etema.attributemodify.editor.model.EditableDurabilityModifier;
 import com.etema.attributemodify.editor.model.EditableItemRule;
+import com.etema.attributemodify.editor.model.EditableMiningOverride;
 import com.etema.attributemodify.editor.model.EditableOperationType;
 import com.etema.attributemodify.editor.model.EditableSlotType;
 import com.etema.attributemodify.editor.network.C2SRequestEditorCatalogPacket;
@@ -24,6 +26,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.TieredItem;
 import net.minecraftforge.registries.ForgeRegistries;
 
 import java.math.BigDecimal;
@@ -97,6 +100,7 @@ public final class AttributeModifyEditorScreen extends Screen {
     private final List<AttributeOption> attributes      = new ArrayList<>();
     private final List<AttributeOption> filteredAttrs   = new ArrayList<>();
     private final List<BaseAttribute>  baseAttributes   = new ArrayList<>();
+    private final List<String> miningTiers              = new ArrayList<>();
 
     // ── Estado de UI ───────────────────────────────────────────────────────
     private CatalogItem      selectedItem;
@@ -114,12 +118,14 @@ public final class AttributeModifyEditorScreen extends Screen {
     private EditorLayout layout;
     private boolean      layoutDirty = true;
     private boolean      drawerOpen  = false;
+    private int          selectedMiningIndex = -1;
 
     // ── Widgets ────────────────────────────────────────────────────────────
     private EditBox searchBox;          // buscar ítems
     private EditBox drawerAttrBox;      // atributo en el drawer (texto)
     private EditBox drawerAttrSearch;   // búsqueda dentro del dropdown de atributos
     private EditBox drawerValueBox;     // valor numérico
+    private EditBox drawerMiningTierBox;
     private Button  drawerApplyBtn;
     private Button  drawerCancelBtn;
     private Button  drawerTypeExact;    // botón selector tipo "Exacto"
@@ -206,6 +212,15 @@ public final class AttributeModifyEditorScreen extends Screen {
         drawerValueBox.setTextColorUneditable(0xFF5F7889);
         addRenderableWidget(drawerValueBox);
 
+        drawerMiningTierBox = new EditBox(font, 0, 0, 10, CONTROL_H, Component.empty());
+        drawerMiningTierBox.setHint(Component.literal("Select tier"));
+        drawerMiningTierBox.setBordered(false);
+        drawerMiningTierBox.setVisible(false);
+        drawerMiningTierBox.active = false;
+        drawerMiningTierBox.setTextColor(0xFFE1EDF5);
+        drawerMiningTierBox.setTextColorUneditable(0xFF5F7889);
+        addRenderableWidget(drawerMiningTierBox);
+
         // ── Drawer: botones tipo ───────────────────────────────────────────
         drawerTypeExact = addRenderableWidget(
             Button.builder(Component.literal("Exacto"), b -> setDraftType(false))
@@ -242,6 +257,7 @@ public final class AttributeModifyEditorScreen extends Screen {
         if (drawerAttrBox  != null) drawerAttrBox.tick();
         if (drawerAttrSearch != null) drawerAttrSearch.tick();
         if (drawerValueBox != null) drawerValueBox.tick();
+        if (drawerMiningTierBox != null) drawerMiningTierBox.tick();
         consumeNetworkState();
     }
 
@@ -405,7 +421,7 @@ public final class AttributeModifyEditorScreen extends Screen {
         int footerY = b.getY() + b.getHeight() - LayoutEngine.EDITOR_FOOTER_H;
         g.fill(b.getX(), footerY, b.getX() + b.getWidth(), b.getY() + b.getHeight(), HEADER_BG);
         g.fill(b.getX(), footerY - 1, b.getX() + b.getWidth(), footerY, BORDER_SOFT);
-        String tip = drawerOpen ? "Edit the attribute in the panel →" : "Click an attribute to modify it, or use + Add";
+        String tip = drawerOpen ? "Edit the value in the panel ->" : "Click an entry to modify it, or use + Add";
         g.drawString(font, tip, b.getX() + 8, centeredTextY(footerY, LayoutEngine.EDITOR_FOOTER_H), ACCENT2, false);
     }
 
@@ -456,14 +472,18 @@ public final class AttributeModifyEditorScreen extends Screen {
         List<VisibleRow> rows = visibleRows();
         if (rows.isEmpty()) {
             g.drawString(font, "No attributes. Use + Add to create one.", x + 8, cy + 4, TEXT_DIM, false);
-            return;
+            cy += 24;
+        } else {
+            for (int i = 0; i < rows.size(); i++) {
+                VisibleRow row = rows.get(i);
+                int ry = cy + i * 22;
+                renderAttributeRow(g, x, ry, w, row, i, mx, logicalMy);
+            }
+            cy += rows.size() * 22 + 12;
         }
 
-        for (int i = 0; i < rows.size(); i++) {
-            VisibleRow row = rows.get(i);
-            int ry = cy + i * 22;
-            renderAttributeRow(g, x, ry, w, row, i, mx, logicalMy);
-        }
+        cy = renderDurabilitySection(g, x, cy, w, mx, logicalMy);
+        renderMiningSection(g, x, cy, w, mx, logicalMy);
     }
 
     private void renderAttributeRow(GuiGraphics g, int x, int ry, int w,
@@ -561,11 +581,51 @@ public final class AttributeModifyEditorScreen extends Screen {
         // Cabecera
         g.fill(dx, dy, dx + dw, dy + PANEL_HEADER_H, HEADER_BG);
         g.fill(dx, dy + PANEL_HEADER_H, dx + dw, dy + PANEL_HEADER_H + 1, BORDER_SOFT);
-        String drawerTitle = draft.draftSource() == DraftSource.REGISTRY ? "Add attribute" : "Modify attribute";
+        boolean durabilityDraft = draft.draftSource() == DraftSource.DURABILITY;
+        boolean miningDraft = draft.draftSource() == DraftSource.MINING;
+        String drawerTitle = durabilityDraft ? "Modify durability"
+                : (miningDraft ? "Modify mining"
+                : (draft.draftSource() == DraftSource.REGISTRY ? "Add attribute" : "Modify attribute"));
         g.drawString(font, drawerTitle, dx + 10, centeredTextY(dy, PANEL_HEADER_H), ACCENT, false);
 
         int pad = LayoutEngine.DRAWER_PADDING;
         int fw  = dw - pad * 2;
+
+        if (durabilityDraft) {
+            int fy = layout.drawerFieldValueY();
+            drawFieldLabel(g, "Durability", dx + pad, fy);
+            int valueBorderColor = (drawerValueBox != null && drawerValueBox.isFocused()) ? ACCENT : BORDER;
+            g.fill(dx + pad, fy, dx + pad + fw, fy + CONTROL_H, INPUT_BG);
+            drawBorder(g, dx + pad, fy, fw, CONTROL_H, valueBorderColor);
+            String helper = "Writes top-level durability for this item.";
+            g.drawString(font, truncatePx(helper, fw), dx + pad, fy + CONTROL_H + 7, TEXT_DIM, false);
+            return;
+        }
+
+        if (miningDraft) {
+            int fy = layout.drawerFieldValueY();
+            drawFieldLabel(g, "Mining speed", dx + pad, fy);
+            int speedBorder = (drawerValueBox != null && drawerValueBox.isFocused()) ? ACCENT : BORDER;
+            g.fill(dx + pad, fy, dx + pad + fw, fy + CONTROL_H, INPUT_BG);
+            drawBorder(g, dx + pad, fy, fw, CONTROL_H, speedBorder);
+
+            fy = layout.drawerFieldTypeY();
+            drawFieldLabel(g, "Mining tier", dx + pad, fy);
+            boolean tierDDOpen = dropdown.openDropdown() == OpenDropdown.MINING_TIER;
+            String tierValue = drawerMiningTierBox == null ? "" : drawerMiningTierBox.getValue().trim();
+            String tierLabel = tierValue.isBlank()
+                    ? (miningTiers.isEmpty() ? "No mining tiers detected" : "Select tier")
+                    : tierValue;
+            int tierBorder = tierDDOpen ? ACCENT : BORDER;
+            g.fill(dx + pad, fy, dx + pad + fw, fy + CONTROL_H, INPUT_BG);
+            drawBorder(g, dx + pad, fy, fw, CONTROL_H, tierBorder);
+            int tierTxtW = Math.max(10, fw - font.width(" ▾") - 6);
+            g.drawString(font, truncatePx(tierLabel, tierTxtW), dx + pad + 4,
+                         centeredTextY(fy, CONTROL_H), tierDDOpen ? ACCENT : TEXT, false);
+            g.drawString(font, "▾", dx + pad + fw - font.width("▾") - 4,
+                         centeredTextY(fy, CONTROL_H), tierDDOpen ? ACCENT : TEXT_DIM, false);
+            return;
+        }
 
         // ── Atributo: etiqueta + fondo del campo ──────────────────────────
         int fy = layout.drawerFieldAttrY();
@@ -620,22 +680,31 @@ public final class AttributeModifyEditorScreen extends Screen {
     // ══════════════════════════════════════════════════════════════════════
 
     private void renderDropdownOverlay(GuiGraphics g, int mx, int my, float pt) {
-        if (!drawerOpen || dropdown.openDropdown() != OpenDropdown.ATTRIBUTE) return;
+        if (!drawerOpen || dropdown.openDropdown() == OpenDropdown.NONE) return;
         if (layout == null) return;
 
         g.pose().pushPose();
         g.pose().translate(0, 0, 500);
 
-        Rect2i anchor = attrDropdownAnchor();
-        List<AttributeOption> opts = filteredAttrOptions();
-        DropdownController.AttributeDropdownBounds bounds =
-                dropdown.attributeDropdownBounds(anchor, opts.size(),
-                        height, LayoutEngine.TOP_BAR_H, LayoutEngine.STATUS_BAR_H,
-                        layout.editorPanel(), LayoutEngine.EDITOR_FOOTER_H);
+        if (dropdown.openDropdown() == OpenDropdown.ATTRIBUTE) {
+            Rect2i anchor = attrDropdownAnchor();
+            List<AttributeOption> opts = filteredAttrOptions();
+            DropdownController.AttributeDropdownBounds bounds =
+                    dropdown.attributeDropdownBounds(anchor, opts.size(),
+                            height, LayoutEngine.TOP_BAR_H, LayoutEngine.STATUS_BAR_H,
+                            layout.editorPanel(), LayoutEngine.EDITOR_FOOTER_H);
 
-        renderAttrDropdownMenu(g, bounds, opts, mx, my);
-        if (drawerAttrSearch != null && drawerAttrSearch.visible) {
-            drawerAttrSearch.render(g, mx, my, pt);
+            renderAttrDropdownMenu(g, bounds, opts, mx, my);
+            if (drawerAttrSearch != null && drawerAttrSearch.visible) {
+                drawerAttrSearch.render(g, mx, my, pt);
+            }
+        } else if (dropdown.openDropdown() == OpenDropdown.MINING_TIER) {
+            Rect2i anchor = miningTierDropdownAnchor();
+            DropdownController.DropdownBounds bounds =
+                    dropdown.dropdownBounds(anchor, miningTiers.size(),
+                            height, LayoutEngine.TOP_BAR_H, LayoutEngine.STATUS_BAR_H,
+                            layout.editorPanel(), LayoutEngine.EDITOR_FOOTER_H);
+            renderMiningTierDropdownMenu(g, bounds, mx, my);
         }
 
         g.pose().popPose();
@@ -705,6 +774,42 @@ public final class AttributeModifyEditorScreen extends Screen {
     //  Renderizado — Barra de estado
     // ══════════════════════════════════════════════════════════════════════
 
+    private void renderMiningTierDropdownMenu(GuiGraphics g, DropdownController.DropdownBounds b, int mx, int my) {
+        List<String> tiers = miningTiers;
+        int selectedIdx = selectedMiningTierIndex();
+        dropdown.dropdownScroll(clamp(dropdown.dropdownScroll(), 0, Math.max(0, tiers.size() - b.visibleRows())));
+
+        g.fill(b.x(), b.y(), b.x() + b.w(), b.y() + b.h(), PANEL);
+        drawBorder(g, b.x(), b.y(), b.w(), b.h(), ACCENT);
+
+        if (tiers.isEmpty()) {
+            g.drawString(font, "No tiers detected", b.x() + 7, b.y() + 4, TEXT_MUTED, false);
+            return;
+        }
+
+        for (int vi = 0; vi < b.visibleRows(); vi++) {
+            int ii = dropdown.dropdownScroll() + vi;
+            if (ii < 0 || ii >= tiers.size()) continue;
+
+            int ry = b.y() + vi * 16;
+            String tier = tiers.get(ii);
+            boolean hover = inRect(mx, my, b.x(), ry, b.w(), 16);
+            boolean sel = ii == selectedIdx;
+
+            g.fill(b.x() + 1, ry, b.x() + b.w() - 1, ry + 16, sel ? SEL_BG : (vi % 2 == 0 ? PANEL_ALT : PANEL_DEEP));
+            if (hover && !sel) g.fill(b.x() + 1, ry, b.x() + b.w() - 1, ry + 16, HOVER_TINT);
+            if (sel) g.fill(b.x() + 1, ry, b.x() + 4, ry + 16, ACCENT);
+
+            g.drawString(font, truncatePx(tier, b.w() - 14), b.x() + 7, ry + 2, sel ? ACCENT : TEXT, false);
+        }
+
+        if (tiers.size() > b.visibleRows()) {
+            int maxS = tiers.size() - b.visibleRows();
+            drawScrollbar(g, b.x() + b.w() - 4, b.y() + 2, b.y() + b.h() - 2,
+                          dropdown.dropdownScroll(), maxS, tiers.size(), b.visibleRows());
+        }
+    }
+
     private void renderStatusBar(GuiGraphics g) {
         int y = height - LayoutEngine.STATUS_BAR_H;
         g.fill(0, y, width, height, HEADER_BG);
@@ -732,16 +837,30 @@ public final class AttributeModifyEditorScreen extends Screen {
         // 1. Click en dropdown del drawer
         if (drawerOpen && dropdown.openDropdown() == OpenDropdown.ATTRIBUTE) {
             if (handleAttrDropdownClick(mx, my, btn)) return true;
+        } else if (drawerOpen && dropdown.openDropdown() == OpenDropdown.MINING_TIER) {
+            if (handleMiningTierDropdownClick(mx, my, btn)) return true;
         }
 
         // 2. Click fuera del drawer cierra el dropdown
         if (drawerOpen && dropdown.openDropdown() != OpenDropdown.NONE) {
-            Rect2i anchor = attrDropdownAnchor();
-            DropdownController.AttributeDropdownBounds b = dropdown.attributeDropdownBounds(
-                    anchor, filteredAttrOptions().size(),
-                    height, LayoutEngine.TOP_BAR_H, LayoutEngine.STATUS_BAR_H,
-                    layout.editorPanel(), LayoutEngine.EDITOR_FOOTER_H);
-            if (!inRect(mx, my, b.x(), b.y(), b.w(), b.h())) {
+            Rect2i anchor = dropdown.openDropdown() == OpenDropdown.ATTRIBUTE
+                    ? attrDropdownAnchor()
+                    : miningTierDropdownAnchor();
+            Rect2i boundsRect;
+            if (dropdown.openDropdown() == OpenDropdown.ATTRIBUTE) {
+                DropdownController.AttributeDropdownBounds b = dropdown.attributeDropdownBounds(
+                        anchor, filteredAttrOptions().size(),
+                        height, LayoutEngine.TOP_BAR_H, LayoutEngine.STATUS_BAR_H,
+                        layout.editorPanel(), LayoutEngine.EDITOR_FOOTER_H);
+                boundsRect = new Rect2i(b.x(), b.y(), b.w(), b.h());
+            } else {
+                DropdownController.DropdownBounds b = dropdown.dropdownBounds(
+                        anchor, miningTiers.size(),
+                        height, LayoutEngine.TOP_BAR_H, LayoutEngine.STATUS_BAR_H,
+                        layout.editorPanel(), LayoutEngine.EDITOR_FOOTER_H);
+                boundsRect = new Rect2i(b.x(), b.y(), b.w(), b.h());
+            }
+            if (!inRect(mx, my, boundsRect)) {
                 dropdown.closeDropdown();
                 hideAttrSearch();
                 return true;
@@ -753,6 +872,11 @@ public final class AttributeModifyEditorScreen extends Screen {
             Rect2i attrFieldRect = drawerAttrFieldRect();
             if (inRect(mx, my, attrFieldRect)) {
                 openAttrDropdown();
+                return true;
+            }
+            Rect2i tierFieldRect = miningTierFieldRect();
+            if (inRect(mx, my, tierFieldRect)) {
+                openMiningTierDropdown();
                 return true;
             }
             // Click en tipo Exacto / Porcentual
@@ -769,10 +893,16 @@ public final class AttributeModifyEditorScreen extends Screen {
         if (selectedItem != null) {
             Rect2i addRect = addButtonRectForClick();
             if (inRect(mx, my, addRect)) { clickAddAttribute(); return true; }
+            Rect2i addDurabilityRect = addDurabilityButtonRectForClick();
+            if (inRect(mx, my, addDurabilityRect)) { clickAddDurability(); return true; }
+            Rect2i addMiningRect = addMiningButtonRectForClick();
+            if (inRect(mx, my, addMiningRect)) { clickAddMining(); return true; }
         }
 
         // 6. Modify / Delete en filas de atributos
         if (selectedItem != null && clickAttrRowButtons(mx, my)) return true;
+        if (selectedItem != null && clickDurabilityButtons(mx, my)) return true;
+        if (selectedItem != null && clickMiningButtons(mx, my)) return true;
 
         // 7. Click en lista de ítems
         if (clickItemList(mx, my)) { closeDrawer(); return true; }
@@ -808,6 +938,27 @@ public final class AttributeModifyEditorScreen extends Screen {
                 selectAttrOption(opts.get(ii));
                 dropdown.closeDropdown();
                 hideAttrSearch();
+                return true;
+            }
+        }
+
+        return inRect(mx, my, b.x(), b.y(), b.w(), b.h());
+    }
+
+    private boolean handleMiningTierDropdownClick(double mx, double my, int btn) {
+        Rect2i anchor = miningTierDropdownAnchor();
+        DropdownController.DropdownBounds b = dropdown.dropdownBounds(
+                anchor, miningTiers.size(),
+                height, LayoutEngine.TOP_BAR_H, LayoutEngine.STATUS_BAR_H,
+                layout.editorPanel(), LayoutEngine.EDITOR_FOOTER_H);
+
+        int listTop = b.y();
+        if (mx >= b.x() && mx < b.x() + b.w() && my >= listTop && my < listTop + b.h()) {
+            int vi = ((int) my - listTop) / 16;
+            int ii = dropdown.dropdownScroll() + vi;
+            if (ii >= 0 && ii < miningTiers.size()) {
+                selectMiningTierOption(miningTiers.get(ii));
+                dropdown.closeDropdown();
                 return true;
             }
         }
@@ -880,6 +1031,17 @@ public final class AttributeModifyEditorScreen extends Screen {
                 dropdown.dropdownScroll(clamp(dropdown.dropdownScroll() + (delta > 0 ? -1 : 1), 0, max));
                 return true;
             }
+        } else if (drawerOpen && dropdown.openDropdown() == OpenDropdown.MINING_TIER) {
+            int count = miningTiers.size();
+            Rect2i anchor = miningTierDropdownAnchor();
+            DropdownController.DropdownBounds b = dropdown.dropdownBounds(
+                    anchor, count, height, LayoutEngine.TOP_BAR_H, LayoutEngine.STATUS_BAR_H,
+                    layout.editorPanel(), LayoutEngine.EDITOR_FOOTER_H);
+            int max = Math.max(0, count - b.visibleRows());
+            if (max > 0) {
+                dropdown.dropdownScroll(clamp(dropdown.dropdownScroll() + (delta > 0 ? -1 : 1), 0, max));
+                return true;
+            }
         }
 
         // Scroll en lista de atributos
@@ -919,6 +1081,7 @@ public final class AttributeModifyEditorScreen extends Screen {
         baseAttributes.clear();
         rowsDirty = true;
         attrScroll = 0;
+        selectedMiningIndex = -1;
         closeDrawer();
         status = "Loading rule..."; statusError = false; statusOk = false;
         lastRuleJson = "";
@@ -932,6 +1095,69 @@ public final class AttributeModifyEditorScreen extends Screen {
         openDrawer();
         clearDrawerFields();
         status = "Choose an attribute from the registry.";
+        statusError = false; statusOk = false;
+    }
+
+    private void clickAddDurability() {
+        ensureCurrentRule();
+        draft.resetDraft();
+        draft.draftSource(DraftSource.DURABILITY);
+        openDrawer();
+        clearDrawerFields();
+        if (drawerValueBox != null) {
+            Integer existing = currentRule.getDurability() == null ? null : currentRule.getDurability().getDurability();
+            int suggested = existing != null ? existing : (selectedItem != null && selectedItem.maxDamage() > 0 ? selectedItem.maxDamage() : 100);
+            drawerValueBox.setValue(Integer.toString(suggested));
+            drawerValueBox.setHint(Component.literal("100"));
+            drawerValueResetPending = true;
+        }
+        status = "Editing item durability.";
+        statusError = false; statusOk = false;
+    }
+
+    private void clickAddMining() {
+        ensureCurrentRule();
+        selectedMiningIndex = -1;
+        draft.resetDraft();
+        draft.draftSource(DraftSource.MINING);
+        openDrawer();
+        clearDrawerFields();
+        if (drawerValueBox != null) {
+            float baseSpeed = selectedItemBaseMiningSpeed();
+            drawerValueBox.setHint(Component.literal("Base " + formatAmount(baseSpeed)));
+            drawerValueResetPending = true;
+        }
+        if (drawerMiningTierBox != null) {
+            drawerMiningTierBox.setValue("");
+            drawerMiningTierBox.setHint(Component.literal("Select tier"));
+        }
+        status = "Editing mining override.";
+        statusError = false; statusOk = false;
+    }
+
+    private void openDrawerForMining(int index) {
+        ensureCurrentRule();
+        if (index < 0 || index >= currentRule.getMiningOverrides().size()) {
+            return;
+        }
+        selectedMiningIndex = index;
+        draft.resetDraft();
+        draft.draftSource(DraftSource.MINING);
+        EditableMiningOverride override = currentRule.getMiningOverrides().get(index);
+        openDrawer();
+        clearDrawerFields();
+        if (drawerValueBox != null) {
+            drawerValueBox.setValue(override.getSpeed() == null ? "" : formatAmount(override.getSpeed()));
+            float baseSpeed = selectedItemBaseMiningSpeed();
+            drawerValueBox.setHint(Component.literal("Base " + formatAmount(baseSpeed)));
+            drawerValueResetPending = true;
+        }
+        if (drawerMiningTierBox != null) {
+            drawerMiningTierBox.setValue(override.getTier() == null ? "" : override.getTier());
+            drawerMiningTierBox.setHint(Component.literal("Select tier"));
+            resetEditBoxCaret(drawerMiningTierBox);
+        }
+        status = "Editing mining override.";
         statusError = false; statusOk = false;
     }
 
@@ -990,12 +1216,65 @@ public final class AttributeModifyEditorScreen extends Screen {
             drawerValueBox.setValue("");
             drawerValueResetPending = true;
         }
+        if (drawerMiningTierBox != null) {
+            drawerMiningTierBox.setValue("");
+            resetEditBoxCaret(drawerMiningTierBox);
+        }
     }
 
     private void applyDraft() {
         if (selectedItem == null) { setStatus("Select an item first.", true); return; }
         ensureCurrentRule();
         EditableItemRule rule = currentRule.copy();
+
+        if (draft.draftSource() == DraftSource.DURABILITY) {
+            Integer durability = parseDurabilityInput(drawerValueBox == null ? "" : drawerValueBox.getValue().trim());
+            if (durability == null) { setStatus("Durability must be a whole number of at least 1.", true); return; }
+            EditableDurabilityModifier edited = rule.getDurability() == null
+                    ? new EditableDurabilityModifier(durability)
+                    : rule.getDurability().copy();
+            edited.setDurability(durability);
+            rule.setDurability(edited);
+            currentRule = rule.copy();
+            rowsDirty = true;
+            status = "Saving..."; statusError = false; statusOk = false;
+            EditorNetwork.INSTANCE.sendToServer(new C2SSaveItemRulePacket(EditorJsonPayloads.ruleToPayload(rule)));
+            closeDrawer();
+            return;
+        }
+
+        if (draft.draftSource() == DraftSource.MINING) {
+            Float speed;
+            try {
+                speed = parseMiningSpeed(drawerValueBox == null ? "" : drawerValueBox.getValue().trim());
+            } catch (NumberFormatException e) {
+                setStatus("Mining speed must be a number.", true); return;
+            }
+            if (speed != null && speed < 0.0f) {
+                setStatus("Mining speed must be non-negative.", true); return;
+            }
+            String tier = drawerMiningTierBox == null ? "" : drawerMiningTierBox.getValue().trim().toLowerCase(Locale.ROOT);
+            if (speed == null && tier.isBlank()) {
+                setStatus("Mining needs speed, tier, or both.", true); return;
+            }
+            if (!tier.isBlank() && !isSupportedTier(tier)) {
+                setStatus("Unsupported mining tier.", true); return;
+            }
+
+            EditableMiningOverride edited = new EditableMiningOverride(speed, tier.isBlank() ? null : tier);
+            if (selectedMiningIndex >= 0 && selectedMiningIndex < rule.getMiningOverrides().size()) {
+                rule.getMiningOverrides().set(selectedMiningIndex, edited);
+            } else {
+                rule.getMiningOverrides().add(edited);
+                selectedMiningIndex = rule.getMiningOverrides().size() - 1;
+            }
+            currentRule = rule.copy();
+            rowsDirty = true;
+            status = "Saving..."; statusError = false; statusOk = false;
+            EditorNetwork.INSTANCE.sendToServer(new C2SSaveItemRulePacket(EditorJsonPayloads.ruleToPayload(rule)));
+            closeDrawer();
+            return;
+        }
 
         String rawAttr = drawerAttrBox == null ? "" : drawerAttrBox.getValue().trim();
         if (rawAttr.isBlank()) { setStatus("No attribute selected.", true); return; }
@@ -1088,6 +1367,7 @@ public final class AttributeModifyEditorScreen extends Screen {
         currentRule = new EditableItemRule(selectedItem.id(), false);
         rowsDirty = true;
         draft.resetDraft();
+        selectedMiningIndex = -1;
         attrScroll = 0;
         closeDrawer();
         status = "Resetting..."; statusError = false; statusOk = false;
@@ -1118,11 +1398,20 @@ public final class AttributeModifyEditorScreen extends Screen {
         // drawerValueBox IS a real EditBox — visible when drawer is open and action != REMOVE
         boolean valueVisible = visible && draft.action() != EditableAttributeAction.REMOVE;
         if (drawerValueBox   != null) { drawerValueBox.visible = valueVisible; drawerValueBox.active = valueVisible; }
+        if (drawerMiningTierBox != null) { drawerMiningTierBox.visible = false; drawerMiningTierBox.active = false; }
         if (drawerApplyBtn   != null) { drawerApplyBtn.visible = visible;   drawerApplyBtn.active = visible; }
         if (drawerCancelBtn  != null) { drawerCancelBtn.visible = visible;  drawerCancelBtn.active = visible; }
         // drawerTypeExact / drawerTypePercent are drawn manually as toggles, not as Minecraft Buttons
         if (drawerTypeExact  != null) { drawerTypeExact.visible = false;    drawerTypeExact.active = false; }
         if (drawerTypePercent != null){ drawerTypePercent.visible = false;  drawerTypePercent.active = false; }
+        if (visible && draft.draftSource() == DraftSource.DURABILITY && drawerValueBox != null) {
+            drawerValueBox.visible = true;
+            drawerValueBox.active = true;
+        }
+        if (visible && draft.draftSource() == DraftSource.MINING && drawerValueBox != null) {
+            drawerValueBox.visible = true;
+            drawerValueBox.active = true;
+        }
         if (!visible) { hideAttrSearch(); }
     }
 
@@ -1141,6 +1430,17 @@ public final class AttributeModifyEditorScreen extends Screen {
         }
     }
 
+    private void openMiningTierDropdown() {
+        if (miningTiers.isEmpty()) {
+            setStatus("No mining tiers detected in the registry.", true);
+            return;
+        }
+        dropdown.toggleDropdown(OpenDropdown.MINING_TIER);
+        if (dropdown.openDropdown() == OpenDropdown.MINING_TIER) {
+            dropdown.dropdownScroll(Math.max(0, selectedMiningTierIndex()));
+        }
+    }
+
     private void hideAttrSearch() {
         if (drawerAttrSearch != null) { drawerAttrSearch.visible = false; drawerAttrSearch.active = false; }
     }
@@ -1152,6 +1452,24 @@ public final class AttributeModifyEditorScreen extends Screen {
         }
         hideAttrSearch();
         dropdown.closeDropdown();
+    }
+
+    private void selectMiningTierOption(String tier) {
+        if (drawerMiningTierBox == null) {
+            return;
+        }
+        drawerMiningTierBox.setValue(tier == null ? "" : tier);
+        resetEditBoxCaret(drawerMiningTierBox);
+    }
+
+    private Rect2i miningTierFieldRect() {
+        if (layout == null) return new Rect2i(0, 0, 0, 0);
+        return new Rect2i(layout.drawerX() + LayoutEngine.DRAWER_PADDING,
+                          layout.drawerFieldTypeY(), layout.drawerW() - LayoutEngine.DRAWER_PADDING * 2, CONTROL_H);
+    }
+
+    private Rect2i miningTierDropdownAnchor() {
+        return miningTierFieldRect();
     }
 
     private void setDraftType(boolean percent) {
@@ -1234,6 +1552,13 @@ public final class AttributeModifyEditorScreen extends Screen {
             }
         }
 
+        if (drawerMiningTierBox != null) {
+            drawerMiningTierBox.setX(dx + pad + 4);
+            drawerMiningTierBox.setY(layout.drawerFieldTypeY() + 5);
+            drawerMiningTierBox.setWidth(Math.max(10, fw - 8));
+            drawerMiningTierBox.setHeight(CONTROL_H);
+        }
+
         // Botones Apply / Cancel
         int btY = layout.drawerButtonsY();
         int btW = (fw - 6) / 2;
@@ -1268,6 +1593,16 @@ public final class AttributeModifyEditorScreen extends Screen {
     }
 
     // ══════════════════════════════════════════════════════════════════════
+    private Rect2i addDurabilityButtonRectForClick() {
+        int y = durabilitySectionHeaderY() - attrScroll;
+        return addButtonRect(layout.attrListX(), y, layout.attrListW());
+    }
+
+    private Rect2i addMiningButtonRectForClick() {
+        int y = miningSectionHeaderY() - attrScroll;
+        return addButtonRect(layout.attrListX(), y, layout.attrListW());
+    }
+
     //  Red
     // ══════════════════════════════════════════════════════════════════════
 
@@ -1295,7 +1630,7 @@ public final class AttributeModifyEditorScreen extends Screen {
     }
 
     private void parseCatalog(String json) {
-        allItems.clear(); attributes.clear();
+        allItems.clear(); attributes.clear(); miningTiers.clear();
         try {
             JsonObject root = JsonParser.parseString(json).getAsJsonObject();
             JsonArray items = root.getAsJsonArray("items");
@@ -1321,6 +1656,15 @@ public final class AttributeModifyEditorScreen extends Screen {
             attributes.sort(Comparator.comparing(AttributeOption::namespace)
                     .thenComparing(AttributeOption::translatedName)
                     .thenComparing(o -> o.id().toString()));
+
+            JsonArray tiers = root.getAsJsonArray("miningTiers");
+            if (tiers != null) for (var el : tiers) {
+                String tier = el.getAsString();
+                if (tier != null && !tier.isBlank()) {
+                    miningTiers.add(tier);
+                }
+            }
+            miningTiers.sort(String::compareToIgnoreCase);
             attrFilterDirty = true;
         } catch (RuntimeException e) {
             status = "Catalog parse failed: " + e.getMessage(); statusError = true; statusOk = false;
@@ -1346,6 +1690,7 @@ public final class AttributeModifyEditorScreen extends Screen {
             if (selectedItem != null && target != null && !selectedItem.id().equals(target)) return;
 
             draft.resetDraft();
+            selectedMiningIndex = -1;
             externalConflict = root.has("externalConflict") && root.get("externalConflict").getAsBoolean();
             parseBaseAttributes(root);
             currentRule = EditorJsonPayloads.ruleFromPayload(json).orElse(null);
@@ -1353,6 +1698,7 @@ public final class AttributeModifyEditorScreen extends Screen {
                 currentRule = new EditableItemRule(selectedItem.id(), false);
             rowsDirty  = true;
             attrScroll = 0;
+            selectedMiningIndex = -1;
             closeDrawer();
             status = externalConflict ? "External rule detected." : "Rule loaded.";
             statusError = false; statusOk = !externalConflict;
@@ -1429,11 +1775,176 @@ public final class AttributeModifyEditorScreen extends Screen {
 
     private int measureAttrContentHeight() {
         int rows = visibleRows().size();
-        // section header + filas + un poco de margen
-        return 6 + 14 + 2 + Math.max(18, rows * 22) + 12;
+        int miningRows = currentRule == null ? 0 : currentRule.getMiningOverrides().size();
+        return 6 + 14 + 2 + (rows == 0 ? 24 : rows * 22 + 12)
+                + 14 + 2 + 20 + 12
+                + 14 + 2 + (miningRows == 0 ? 20 : miningRows * 22) + 12;
     }
 
     // ══════════════════════════════════════════════════════════════════════
+    private int renderDurabilitySection(GuiGraphics g, int x, int y, int w, int mx, int logicalMy) {
+        int headerY = y;
+        int cy = renderSectionHeader(g, x, headerY, w, "DURABILITY");
+        Rect2i addRect = addButtonRect(x, headerY, w);
+        boolean hasDurability = currentRule != null && currentRule.getDurability() != null
+                && currentRule.getDurability().getDurability() != null;
+        drawSmallButton(g, addRect, hasDurability ? "Modify" : "+ Add", true, inRect(mx, logicalMy, addRect));
+
+        int ry = cy;
+        g.fill(x + 4, ry, x + w - 4, ry + 20, PANEL_DEEP);
+        if (hasDurability) {
+            int value = currentRule.getDurability().getDurability();
+            String valueText = Integer.toString(value);
+            g.drawString(font, valueText, x + 10, centeredTextY(ry, 20), ACCENT, false);
+            String label = selectedItem != null && selectedItem.damageable() ? "Vanilla durability override" : "Custom durability";
+            g.drawString(font, truncatePx(label, Math.max(20, w - 100)), x + 10 + font.width(valueText) + 8,
+                    centeredTextY(ry, 20), TEXT, false);
+            Rect2i delRect = durabilityDeleteButtonRect(x, ry, w);
+            drawDeleteButton(g, delRect, inRect(mx, logicalMy, delRect));
+        } else {
+            String label = selectedItem != null && selectedItem.damageable()
+                    ? "No durability override. Vanilla max: " + selectedItem.maxDamage()
+                    : "No custom durability.";
+            g.drawString(font, truncatePx(label, Math.max(20, w - 20)), x + 10, centeredTextY(ry, 20), TEXT_DIM, false);
+        }
+        return ry + 32;
+    }
+
+    private boolean clickDurabilityButtons(double mx, double my) {
+        int headerY = durabilitySectionHeaderY() - attrScroll;
+        Rect2i addRect = addButtonRect(layout.attrListX(), headerY, layout.attrListW());
+        if (inRect(mx, my, addRect)) {
+            clickAddDurability();
+            return true;
+        }
+
+        if (currentRule == null || currentRule.getDurability() == null) {
+            return false;
+        }
+
+        int rowY = headerY + 14 + 2;
+        Rect2i delRect = durabilityDeleteButtonRect(layout.attrListX(), rowY, layout.attrListW());
+        if (inRect(mx, my, delRect)) {
+            deleteDurability();
+            return true;
+        }
+        return false;
+    }
+
+    private int durabilitySectionHeaderY() {
+        int rows = visibleRows().size();
+        int cy = layout.contentTop() + 6 + 14 + 2;
+        cy += rows == 0 ? 24 : rows * 22 + 12;
+        return cy;
+    }
+
+    private Rect2i durabilityDeleteButtonRect(int x, int ry, int w) {
+        return new Rect2i(x + w - 26, ry + 3, 22, 14);
+    }
+
+    private void deleteDurability() {
+        ensureCurrentRule();
+        EditableItemRule rule = currentRule.copy();
+        rule.setDurability(null);
+        currentRule = rule.copy();
+        rowsDirty = true;
+        status = "Saving..."; statusError = false; statusOk = false;
+        EditorNetwork.INSTANCE.sendToServer(new C2SSaveItemRulePacket(EditorJsonPayloads.ruleToPayload(rule)));
+        closeDrawer();
+        layoutDirty = true;
+    }
+
+    private void renderMiningSection(GuiGraphics g, int x, int y, int w, int mx, int logicalMy) {
+        int headerY = y;
+        int cy = renderSectionHeader(g, x, headerY, w, "MINING");
+        Rect2i addRect = addButtonRect(x, headerY, w);
+        drawSmallButton(g, addRect, "+ Add", true, inRect(mx, logicalMy, addRect));
+
+        List<EditableMiningOverride> mining = currentRule == null ? List.of() : currentRule.getMiningOverrides();
+        if (mining.isEmpty()) {
+            g.fill(x + 4, cy, x + w - 4, cy + 20, PANEL_DEEP);
+            g.drawString(font, "No mining override.", x + 10, centeredTextY(cy, 20), TEXT_DIM, false);
+            return;
+        }
+
+        for (int i = 0; i < mining.size(); i++) {
+            int ry = cy + i * 22;
+            EditableMiningOverride override = mining.get(i);
+            boolean selected = draft.draftSource() == DraftSource.MINING && selectedMiningIndex == i;
+            boolean hover = inRect(mx, logicalMy, x + 4, ry, w - 8, 20);
+            g.fill(x + 4, ry, x + w - 4, ry + 20, selected ? SEL_BG : (i % 2 == 0 ? PANEL_DEEP : PANEL_ALT));
+            if (hover && !selected) g.fill(x + 4, ry, x + w - 4, ry + 20, HOVER_TINT);
+            if (selected) g.fill(x + 4, ry, x + 7, ry + 20, ACCENT);
+
+            String speed = override.getSpeed() == null ? "-" : formatAmount(override.getSpeed());
+            String tier = override.getTier() == null || override.getTier().isBlank() ? "-" : override.getTier();
+            String text = "Speed " + speed + "  Tier " + tier;
+            g.drawString(font, truncatePx(text, Math.max(20, w - 100)), x + 10, centeredTextY(ry, 20), TEXT, false);
+
+            Rect2i modRect = miningModifyButtonRect(x, ry, w);
+            Rect2i delRect = miningDeleteButtonRect(x, ry, w);
+            drawSmallButton(g, modRect, "Modify", true, inRect(mx, logicalMy, modRect));
+            drawDeleteButton(g, delRect, inRect(mx, logicalMy, delRect));
+        }
+    }
+
+    private boolean clickMiningButtons(double mx, double my) {
+        int headerY = miningSectionHeaderY() - attrScroll;
+        Rect2i addRect = addButtonRect(layout.attrListX(), headerY, layout.attrListW());
+        if (inRect(mx, my, addRect)) {
+            clickAddMining();
+            return true;
+        }
+
+        if (currentRule == null || currentRule.getMiningOverrides().isEmpty()) {
+            return false;
+        }
+
+        int rowBaseY = headerY + 14 + 2;
+        for (int i = 0; i < currentRule.getMiningOverrides().size(); i++) {
+            int ry = rowBaseY + i * 22;
+            Rect2i modRect = miningModifyButtonRect(layout.attrListX(), ry, layout.attrListW());
+            Rect2i delRect = miningDeleteButtonRect(layout.attrListX(), ry, layout.attrListW());
+            if (inRect(mx, my, modRect)) {
+                openDrawerForMining(i);
+                return true;
+            }
+            if (inRect(mx, my, delRect)) {
+                deleteMining(i);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private int miningSectionHeaderY() {
+        int base = durabilitySectionHeaderY();
+        return base + 14 + 2 + 20 + 12;
+    }
+
+    private Rect2i miningModifyButtonRect(int x, int ry, int w) {
+        return new Rect2i(x + w - 76, ry + 3, 46, 14);
+    }
+
+    private Rect2i miningDeleteButtonRect(int x, int ry, int w) {
+        return new Rect2i(x + w - 26, ry + 3, 22, 14);
+    }
+
+    private void deleteMining(int index) {
+        ensureCurrentRule();
+        EditableItemRule rule = currentRule.copy();
+        if (index < 0 || index >= rule.getMiningOverrides().size()) {
+            return;
+        }
+        rule.getMiningOverrides().remove(index);
+        currentRule = rule.copy();
+        selectedMiningIndex = -1;
+        status = "Saving..."; statusError = false; statusOk = false;
+        EditorNetwork.INSTANCE.sendToServer(new C2SSaveItemRulePacket(EditorJsonPayloads.ruleToPayload(rule)));
+        closeDrawer();
+        layoutDirty = true;
+    }
+
     //  Utilidades de filtrado
     // ══════════════════════════════════════════════════════════════════════
 
@@ -1526,7 +2037,9 @@ public final class AttributeModifyEditorScreen extends Screen {
     }
 
     private boolean hasRuleOverrides() {
-        return currentRule != null && !currentRule.getAttributes().isEmpty();
+        return currentRule != null && (!currentRule.getAttributes().isEmpty()
+                || currentRule.getDurability() != null
+                || !currentRule.getMiningOverrides().isEmpty());
     }
 
     private void setStatus(String msg, boolean error) {
@@ -1569,10 +2082,89 @@ public final class AttributeModifyEditorScreen extends Screen {
     }
 
     private boolean isAmountInput(String v) {
+        if (draft.draftSource() == DraftSource.DURABILITY) {
+            return v.isBlank() || v.matches("\\d*");
+        }
         return v.isBlank() || v.matches("-?\\d*(\\.\\d*)?%?");
     }
 
+    private boolean isTierInput(String v) {
+        return v.isBlank() || v.matches("[A-Za-z0-9_:.\\-]*");
+    }
+
+    private Integer parseDurabilityInput(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            int value = Integer.parseInt(raw);
+            return value >= 1 ? value : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
     // ── Nombres de atributos ──────────────────────────────────────────────
+
+    private Float parseMiningSpeed(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        return Float.parseFloat(raw);
+    }
+
+    private float selectedItemBaseMiningSpeed() {
+        if (selectedItem == null) {
+            return 1.0f;
+        }
+        Item item = ForgeRegistries.ITEMS.getValue(selectedItem.id());
+        if (item instanceof TieredItem tiered) {
+            return tiered.getTier().getSpeed();
+        }
+        return 1.0f;
+    }
+
+    private boolean isSupportedTier(String tier) {
+        if (tier == null) {
+            return false;
+        }
+        String normalized = normalizeTierInput(tier);
+        if (miningTiers.isEmpty()) {
+            return true;
+        }
+        return miningTiers.stream().anyMatch(registered -> normalizeTierInput(registered).equals(normalized));
+    }
+
+    private int selectedMiningTierIndex() {
+        String raw = drawerMiningTierBox == null ? "" : drawerMiningTierBox.getValue().trim();
+        if (raw.isBlank()) {
+            return -1;
+        }
+        String normalized = normalizeTierInput(raw);
+        for (int i = 0; i < miningTiers.size(); i++) {
+            if (normalizeTierInput(miningTiers.get(i)).equals(normalized)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private String normalizeTierInput(String tier) {
+        String normalized = tier == null ? "" : tier.trim().toLowerCase(Locale.ROOT);
+        normalized = switch (normalized) {
+            case "wooden" -> "wood";
+            case "golden" -> "gold";
+            default -> normalized;
+        };
+        return normalized.contains(":") ? normalized : "minecraft:" + normalized;
+    }
+
+    private String truncateTierList() {
+        if (miningTiers.size() <= 4) {
+            return String.join(", ", miningTiers);
+        }
+        return String.join(", ", miningTiers.subList(0, 4)) + " +" + (miningTiers.size() - 4);
+    }
 
     private String attrDisplayName(ResourceLocation id) {
         if (id == null) return "Unknown";

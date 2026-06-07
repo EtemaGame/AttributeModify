@@ -9,6 +9,7 @@ public final class EditableItemRule {
     private ResourceLocation targetId;
     private boolean tagTarget;
     private final List<EditableAttributeModifier> attributes = new ArrayList<>();
+    private final List<EditableMiningOverride> miningOverrides = new ArrayList<>();
     private EditableDurabilityModifier durability;
 
     public EditableItemRule(ResourceLocation targetId, boolean tagTarget) {
@@ -40,6 +41,10 @@ public final class EditableItemRule {
         return durability;
     }
 
+    public List<EditableMiningOverride> getMiningOverrides() {
+        return miningOverrides;
+    }
+
     public void setDurability(EditableDurabilityModifier durability) {
         this.durability = durability;
     }
@@ -52,6 +57,9 @@ public final class EditableItemRule {
         EditableItemRule copy = new EditableItemRule(targetId, tagTarget);
         for (EditableAttributeModifier attribute : attributes) {
             copy.getAttributes().add(attribute.copy());
+        }
+        for (EditableMiningOverride mining : miningOverrides) {
+            copy.getMiningOverrides().add(mining.copy());
         }
         copy.setDurability(durability == null ? null : durability.copy());
         return copy;

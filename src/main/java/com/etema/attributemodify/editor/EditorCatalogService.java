@@ -1,12 +1,14 @@
 package com.etema.attributemodify.editor;
 
 import com.etema.attributemodify.integration.CuriosIntegration;
+import com.etema.attributemodify.integration.AccessoriesIntegration;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraftforge.common.TierSortingRegistry;
 import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.Comparator;
@@ -44,8 +46,17 @@ public final class EditorCatalogService {
             ForgeRegistries.ITEMS.tags().getTagNames().map(TagKey::location).forEach(tags::add);
         }
 
-        return new EditorCatalog(items, attributes, Set.copyOf(equipmentSlots), Set.of(),
-                Set.copyOf(namespaces), Set.copyOf(tags), CuriosIntegration.isCuriosLoaded());
+        Set<ResourceLocation> miningTiers = new LinkedHashSet<>();
+        for (var tier : TierSortingRegistry.getSortedTiers()) {
+            ResourceLocation id = TierSortingRegistry.getName(tier);
+            if (id != null) {
+                miningTiers.add(id);
+            }
+        }
+
+        return new EditorCatalog(items, attributes, Set.copyOf(equipmentSlots), Set.of(), Set.of(),
+                Set.copyOf(namespaces), Set.copyOf(tags), Set.copyOf(miningTiers), CuriosIntegration.isCuriosLoaded(),
+                AccessoriesIntegration.isAccessoriesLoaded());
     }
 
     private static EditorItemInfo toItemInfo(ResourceLocation id, Item item) {
@@ -64,9 +75,12 @@ public final class EditorCatalogService {
             List<EditorAttributeInfo> attributes,
             Set<String> equipmentSlots,
             Set<String> curiosSlots,
+            Set<String> accessoriesSlots,
             Set<String> namespaces,
             Set<ResourceLocation> itemTags,
-            boolean curiosLoaded) {
+            Set<ResourceLocation> miningTiers,
+            boolean curiosLoaded,
+            boolean accessoriesLoaded) {
     }
 
     public record EditorItemInfo(
