@@ -7,9 +7,10 @@ import com.google.common.collect.Multimaps;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraftforge.event.ItemAttributeModifierEvent;
+
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.lang.reflect.Field;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -29,7 +30,7 @@ public class AttributeApplicationService {
             return;
         }
 
-        List<java.util.Map.Entry<Attribute, AttributeModifier>> finalModifiers = new ArrayList<>(event.getOriginalModifiers().entries());
+        List<java.util.Map.Entry<Attribute, AttributeModifier>> finalModifiers = new ArrayList<>(event.getModifiers().entries());
 
         for (ItemAttributeDataManager.AttributeEntry entry : entries) {
             if (entry.action() == ItemAttributeDataManager.AttributeAction.SET) {
@@ -40,7 +41,7 @@ public class AttributeApplicationService {
             if (attribute == null) continue;
 
             switch (entry.action()) {
-                case REMOVE -> finalModifiers.removeIf(e -> e.getKey().equals(attribute));
+                case REMOVE -> removeOriginalAttributeModifiers(finalModifiers, attribute, event.getOriginalModifiers().get(attribute));
                 case MODIFY -> applyModifyRule(event, attribute, entry.modifier(), finalModifiers);
                 case ADD -> applyAddRule(event, attribute, entry.modifier(), finalModifiers);
                 case SET -> {
@@ -95,6 +96,21 @@ public class AttributeApplicationService {
             ordered.put(entry.getKey(), entry.getValue());
         }
         return ordered;
+    }
+
+    static <T> void removeOriginalAttributeModifiers(List<java.util.Map.Entry<T, AttributeModifier>> modifiers,
+            T key, Collection<AttributeModifier> originalModifiers) {
+        if (originalModifiers == null || originalModifiers.isEmpty()) {
+            return;
+        }
+
+        Set<UUID> originalIds = new HashSet<>();
+        for (AttributeModifier original : originalModifiers) {
+            originalIds.add(original.getId());
+        }
+
+        modifiers.removeIf(entry -> Objects.equals(entry.getKey(), key)
+                && originalIds.contains(entry.getValue().getId()));
     }
 
     private static void setPrivateField(Object target, String fieldName, Object value) throws ReflectiveOperationException {
@@ -190,20 +206,29 @@ public class AttributeApplicationService {
             return;
         }
 
+        Collection<AttributeModifier> originalModifiers = event.getOriginalModifiers().get(attribute);
         double amount = exactSetAmount(dataModifier.getAmount(), attribute.getDefaultValue());
         AttributeModifier replacement = new AttributeModifier(
                 dataModifier.getId(),
                 dataModifier.getName(),
                 amount,
                 AttributeModifier.Operation.ADDITION);
-        replaceAttributePreservingOrder(finalModifiers, attribute, replacement);
+        replaceAttributePreservingOrder(finalModifiers, attribute, replacement, originalModifiers);
     }
 
     static <T> void replaceAttributePreservingOrder(List<java.util.Map.Entry<T, AttributeModifier>> modifiers,
-            T key, AttributeModifier replacement) {
+            T key, AttributeModifier replacement, Collection<AttributeModifier> originalModifiers) {
+        Set<UUID> originalIds = new HashSet<>();
+        if (originalModifiers != null) {
+            for (AttributeModifier original : originalModifiers) {
+                originalIds.add(original.getId());
+            }
+        }
+
         int firstIndex = -1;
         for (int i = 0; i < modifiers.size(); i++) {
-            if (Objects.equals(modifiers.get(i).getKey(), key)) {
+            java.util.Map.Entry<T, AttributeModifier> entry = modifiers.get(i);
+            if (Objects.equals(entry.getKey(), key) && originalIds.contains(entry.getValue().getId())) {
                 if (firstIndex < 0) {
                     firstIndex = i;
                 }
@@ -216,7 +241,8 @@ public class AttributeApplicationService {
         }
 
         for (int i = modifiers.size() - 1; i >= 0; i--) {
-            if (Objects.equals(modifiers.get(i).getKey(), key)) {
+            java.util.Map.Entry<T, AttributeModifier> entry = modifiers.get(i);
+            if (Objects.equals(entry.getKey(), key) && originalIds.contains(entry.getValue().getId())) {
                 modifiers.remove(i);
             }
         }

@@ -23,24 +23,52 @@ class AttributeApplicationServiceTest {
     }
 
     @Test
-    void replaceAttributePreservingOrderKeepsOriginalPosition() {
-        List<Map.Entry<String, net.minecraft.world.entity.ai.attributes.AttributeModifier>> modifiers =
-                new ArrayList<>();
-        modifiers.add(Map.entry("attack_speed", new net.minecraft.world.entity.ai.attributes.AttributeModifier(
-                java.util.UUID.randomUUID(), "speed", 1.6,
-                net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADDITION)));
-        modifiers.add(Map.entry("attack_damage", new net.minecraft.world.entity.ai.attributes.AttributeModifier(
-                java.util.UUID.randomUUID(), "damage", 6.0,
-                net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADDITION)));
+    void replaceAttributePreservingOrderKeepsOriginalPositionWithoutTouchingExternalEntries() {
+        Attribute attackSpeed = attribute("attack_speed");
+        Attribute attackDamage = attribute("attack_damage");
 
-        AttributeApplicationService.replaceAttributePreservingOrder(modifiers, "attack_damage",
-                new net.minecraft.world.entity.ai.attributes.AttributeModifier(
-                        java.util.UUID.randomUUID(), "damage_updated", 12.0,
-                        net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADDITION));
+        UUID originalDamageId = UUID.randomUUID();
+        UUID externalDamageId = UUID.randomUUID();
 
-        assertIterableEquals(List.of("attack_speed", "attack_damage"),
-                List.of(modifiers.get(0).getKey(), modifiers.get(1).getKey()));
+        List<Map.Entry<Attribute, AttributeModifier>> modifiers = new ArrayList<>();
+        modifiers.add(Map.entry(attackSpeed, new AttributeModifier(UUID.randomUUID(), "speed", 1.6,
+                AttributeModifier.Operation.ADDITION)));
+        modifiers.add(Map.entry(attackDamage, new AttributeModifier(originalDamageId, "damage", 6.0,
+                AttributeModifier.Operation.ADDITION)));
+        modifiers.add(Map.entry(attackDamage, new AttributeModifier(externalDamageId, "external_damage", 2.0,
+                AttributeModifier.Operation.ADDITION)));
+
+        AttributeApplicationService.replaceAttributePreservingOrder(modifiers, attackDamage,
+                new AttributeModifier(UUID.randomUUID(), "damage_updated", 12.0,
+                        AttributeModifier.Operation.ADDITION),
+                List.of(new AttributeModifier(originalDamageId, "damage", 6.0,
+                        AttributeModifier.Operation.ADDITION)));
+
+        assertIterableEquals(List.of(attackSpeed, attackDamage, attackDamage),
+                List.of(modifiers.get(0).getKey(), modifiers.get(1).getKey(), modifiers.get(2).getKey()));
         assertEquals(12.0, modifiers.get(1).getValue().getAmount());
+        assertEquals(2.0, modifiers.get(2).getValue().getAmount());
+    }
+
+    @Test
+    void removeOriginalAttributeModifiersKeepsExternalEntries() {
+        Attribute attackDamage = attribute("attack_damage");
+
+        UUID originalDamageId = UUID.randomUUID();
+        UUID externalDamageId = UUID.randomUUID();
+
+        List<Map.Entry<Attribute, AttributeModifier>> modifiers = new ArrayList<>();
+        modifiers.add(Map.entry(attackDamage, new AttributeModifier(originalDamageId, "damage", 6.0,
+                AttributeModifier.Operation.ADDITION)));
+        modifiers.add(Map.entry(attackDamage, new AttributeModifier(externalDamageId, "external_damage", 2.0,
+                AttributeModifier.Operation.ADDITION)));
+
+        AttributeApplicationService.removeOriginalAttributeModifiers(modifiers, attackDamage,
+                List.of(new AttributeModifier(originalDamageId, "damage", 6.0,
+                        AttributeModifier.Operation.ADDITION)));
+
+        assertIterableEquals(List.of(attackDamage), List.of(modifiers.get(0).getKey()));
+        assertEquals(2.0, modifiers.get(0).getValue().getAmount());
     }
 
     @Test
