@@ -4,6 +4,7 @@ bin
 run
 out
 logs/
+.vscode/
 *.log
 .DS_Store
 *.swp
