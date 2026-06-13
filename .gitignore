@@ -1,4 +1,7 @@
 .gradle
+.gradle-user
+.jdk
+*.zip
 build
 bin
 run
