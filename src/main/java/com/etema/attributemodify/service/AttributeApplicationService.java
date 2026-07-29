@@ -2,14 +2,13 @@ package com.etema.attributemodify.service;
 
 import com.etema.attributemodify.AttributeModify;
 import com.etema.attributemodify.ItemAttributeDataManager;
-import net.minecraft.nbt.Tag;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
-import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.event.ItemAttributeModifierEvent;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Service specialized in applying resolved attribute rules to the Forge event.
@@ -24,8 +23,6 @@ public class AttributeApplicationService {
             return;
         }
 
-        boolean preserveExternalOverrides = hasAttributeModifiersOverride(event.getItemStack());
-
         for (ItemAttributeDataManager.AttributeEntry entry : entries) {
             if (entry.action() == ItemAttributeDataManager.AttributeAction.SET) {
                 continue;
@@ -34,22 +31,22 @@ public class AttributeApplicationService {
             Attribute attribute = entry.attribute();
             if (attribute == null) continue;
 
+            boolean preserveExternalOverrides = hasExternalModifiersForAttribute(event, attribute);
+
             switch (entry.action()) {
                 case REMOVE -> {
                     if (preserveExternalOverrides) {
-                        AttributeModify.LOGGER.debug("[apply] Skipping REMOVE {} on {} in slot {} because the stack already carries AttributeModifiers",
+                        AttributeModify.LOGGER.debug("[apply] Removing external modifiers while applying REMOVE {} on {} in slot {}",
                                 attribute.getDescriptionId(), event.getItemStack().getItem(), event.getSlotType());
-                    } else {
-                        applyRemoveRule(event, attribute);
                     }
+                    applyRemoveRule(event, attribute, entry.targetOperation());
                 }
                 case MODIFY -> {
                     if (preserveExternalOverrides) {
-                        AttributeModify.LOGGER.debug("[apply] Skipping MODIFY {} on {} in slot {} because the stack already carries AttributeModifiers",
+                        AttributeModify.LOGGER.debug("[apply] Preserving external modifiers while applying MODIFY {} on {} in slot {}",
                                 attribute.getDescriptionId(), event.getItemStack().getItem(), event.getSlotType());
-                    } else {
-                        applyModifyRule(event, attribute, entry.modifier());
                     }
+                    applyModifyRule(event, attribute, entry.modifier(), preserveExternalOverrides);
                 }
                 case ADD -> applyAddRule(event, attribute, entry.modifier(), preserveExternalOverrides);
                 case SET -> {
@@ -68,38 +65,95 @@ public class AttributeApplicationService {
                 continue;
             }
 
-            if (preserveExternalOverrides) {
-                AttributeModify.LOGGER.debug("[apply] Skipping SET {} on {} in slot {} because the stack already carries AttributeModifiers",
-                        attribute.getDescriptionId(), event.getItemStack().getItem(), event.getSlotType());
-                continue;
-            }
-
             applySetRule(event, attribute, entry.modifier());
         }
     }
 
-    private static boolean hasAttributeModifiersOverride(ItemStack stack) {
-        if (stack == null || !stack.hasTag()) {
+    public static void clearVanillaModifiers(ItemAttributeModifierEvent event) {
+        if (event == null) {
+            return;
+        }
+
+        for (var entry : List.copyOf(event.getOriginalModifiers().asMap().entrySet())) {
+            Attribute attribute = entry.getKey();
+            Collection<AttributeModifier> vanillaModifiers = event.getItemStack().getItem()
+                    .getDefaultAttributeModifiers(event.getSlotType()).get(attribute);
+            if (vanillaModifiers == null || vanillaModifiers.isEmpty()) {
+                continue;
+            }
+
+            for (AttributeModifier original : List.copyOf(entry.getValue())) {
+                if (containsEquivalentModifier(vanillaModifiers, original)) {
+                    event.removeModifier(attribute, original);
+                }
+            }
+        }
+    }
+
+    static boolean hasExternalModifiersForAttribute(ItemAttributeModifierEvent event, Attribute attribute) {
+        if (event == null || attribute == null) {
             return false;
         }
 
-        // If the stack already carries attribute overrides, stay conservative so we do not
-        // flatten or replace modifiers injected by other systems.
-        return stack.getTag().contains("AttributeModifiers", Tag.TAG_LIST);
+        Collection<AttributeModifier> originalModifiers = event.getOriginalModifiers().get(attribute);
+        if (originalModifiers == null || originalModifiers.isEmpty()) {
+            return false;
+        }
+
+        Collection<AttributeModifier> vanillaModifiers = event.getItemStack().getItem()
+                .getDefaultAttributeModifiers(event.getSlotType()).get(attribute);
+        if (vanillaModifiers == null || vanillaModifiers.isEmpty()) {
+            return true;
+        }
+
+        for (AttributeModifier modifier : originalModifiers) {
+            if (!containsEquivalentModifier(vanillaModifiers, modifier)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
-    private static void applyRemoveRule(ItemAttributeModifierEvent event, Attribute attribute) {
+    static boolean containsEquivalentModifier(Collection<AttributeModifier> candidates, AttributeModifier modifier) {
+        if (candidates == null || candidates.isEmpty() || modifier == null) {
+            return false;
+        }
+
+        for (AttributeModifier candidate : candidates) {
+            if (candidate == modifier) {
+                return true;
+            }
+
+            if (candidate.getId().equals(modifier.getId())
+                    && candidate.getOperation() == modifier.getOperation()
+                    && Double.compare(candidate.getAmount(), modifier.getAmount()) == 0
+                    && Objects.equals(candidate.getName(), modifier.getName())) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void applyRemoveRule(ItemAttributeModifierEvent event, Attribute attribute,
+            AttributeModifier.Operation targetOperation) {
         Collection<AttributeModifier> originalModifiers = event.getOriginalModifiers().get(attribute);
         if (originalModifiers == null || originalModifiers.isEmpty()) {
             return;
         }
 
-        for (AttributeModifier original : originalModifiers) {
-            event.removeModifier(attribute, original);
+        // A selected operation removes only that representation (flat, base %, or
+        // total %). Missing operation keeps the legacy "remove everything" behavior.
+        for (AttributeModifier original : List.copyOf(originalModifiers)) {
+            if (targetOperation == null || original.getOperation() == targetOperation) {
+                event.removeModifier(attribute, original);
+            }
         }
     }
 
-    private static void applyModifyRule(ItemAttributeModifierEvent event, Attribute attribute, AttributeModifier dataModifier) {
+    private static void applyModifyRule(ItemAttributeModifierEvent event, Attribute attribute, AttributeModifier dataModifier,
+            boolean preserveExternalOverrides) {
         if (dataModifier == null) {
             AttributeModify.LOGGER.debug("[apply] MODIFY {} on {} in slot {} was ignored because the datapack modifier is null",
                     attribute.getDescriptionId(), event.getItemStack().getItem(), event.getSlotType());
@@ -107,14 +161,23 @@ public class AttributeApplicationService {
         }
 
         Collection<AttributeModifier> originalModifiers = event.getOriginalModifiers().get(attribute);
-        if (originalModifiers.isEmpty()) {
-            AttributeModify.LOGGER.debug("[semantic] MODIFY {} on {} in slot {} found no original item modifier to replace",
+        if (originalModifiers == null || originalModifiers.isEmpty()) {
+            AttributeModify.LOGGER.debug(
+                    "[semantic] MODIFY {} on {} in slot {} found no original item modifier to replace; falling back to ADD",
                     attribute.getDescriptionId(), event.getItemStack().getItem(), event.getSlotType());
+            event.addModifier(attribute, dataModifier);
             return;
         }
 
+        originalModifiers = List.copyOf(originalModifiers);
         boolean anyModified = false;
+        Collection<AttributeModifier> vanillaModifiers = event.getItemStack().getItem()
+                .getDefaultAttributeModifiers(event.getSlotType()).get(attribute);
         for (AttributeModifier original : originalModifiers) {
+            if (preserveExternalOverrides && !containsEquivalentModifier(vanillaModifiers, original)) {
+                continue;
+            }
+
             event.removeModifier(attribute, original);
             event.addModifier(attribute, new AttributeModifier(
                     original.getId(),
@@ -141,9 +204,17 @@ public class AttributeApplicationService {
 
         if (!preserveExternalOverrides && dataModifier.getOperation() == AttributeModifier.Operation.ADDITION) {
             Collection<AttributeModifier> originalModifiers = event.getOriginalModifiers().get(attribute);
+            Collection<AttributeModifier> vanillaModifiers = event.getItemStack().getItem()
+                    .getDefaultAttributeModifiers(event.getSlotType()).get(attribute);
+            if (originalModifiers == null || originalModifiers.isEmpty()) {
+                event.addModifier(attribute, dataModifier);
+                return;
+            }
+            originalModifiers = List.copyOf(originalModifiers);
             AttributeModifier targetToMerge = null;
             for (AttributeModifier original : originalModifiers) {
-                if (original.getOperation() == AttributeModifier.Operation.ADDITION) {
+                if (original.getOperation() == AttributeModifier.Operation.ADDITION
+                        && containsEquivalentModifier(vanillaModifiers, original)) {
                     targetToMerge = original;
                     break;
                 }
@@ -179,7 +250,7 @@ public class AttributeApplicationService {
                 amount,
                 AttributeModifier.Operation.ADDITION);
         if (originalModifiers != null) {
-            for (AttributeModifier original : originalModifiers) {
+            for (AttributeModifier original : List.copyOf(originalModifiers)) {
                 event.removeModifier(attribute, original);
             }
         }

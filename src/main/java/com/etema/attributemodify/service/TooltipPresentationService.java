@@ -64,14 +64,14 @@ public class TooltipPresentationService {
                 }
 
                 if (entry.action() == ItemAttributeDataManager.AttributeAction.REMOVE) {
-                    slotRules.add(new AttributeInfo(entry.attribute(), null, entry.action()));
+                    slotRules.add(new AttributeInfo(entry.attribute(), null, entry.action(), entry.targetOperation()));
                     continue;
                 }
 
                 if ((entry.action() == ItemAttributeDataManager.AttributeAction.ADD
                         || entry.action() == ItemAttributeDataManager.AttributeAction.SET)
                         && entry.modifier() != null) {
-                    slotRules.add(new AttributeInfo(entry.attribute(), entry.modifier(), entry.action()));
+                    slotRules.add(new AttributeInfo(entry.attribute(), entry.modifier(), entry.action(), null));
                 }
             }
 
@@ -106,7 +106,8 @@ public class TooltipPresentationService {
 
             for (AttributeInfo info : rulesBySlot.get(currentSlot)) {
                 if (info.action() == ItemAttributeDataManager.AttributeAction.REMOVE
-                        && lineMatchesAttribute(lineInfo, info.attribute())) {
+                        && lineMatchesAttribute(lineInfo, info.attribute())
+                        && (info.targetOperation() == null || info.targetOperation() == lineInfo.operation())) {
                     linesToRemove.add(i);
                     break;
                 }
@@ -326,7 +327,14 @@ public class TooltipPresentationService {
             return null;
         }
 
-                return new TooltipLineInfo(extractTranslationKey(args[1]));
+        return new TooltipLineInfo(extractTranslationKey(args[1]), operationFromTranslationKey(key));
+    }
+
+    private static AttributeModifier.Operation operationFromTranslationKey(String key) {
+        if (key.endsWith(".0")) return AttributeModifier.Operation.ADDITION;
+        if (key.endsWith(".1")) return AttributeModifier.Operation.MULTIPLY_BASE;
+        if (key.endsWith(".2")) return AttributeModifier.Operation.MULTIPLY_TOTAL;
+        return null;
     }
 
     private static String extractTranslationKey(Object argument) {
@@ -351,10 +359,10 @@ public class TooltipPresentationService {
     }
 
     private record AttributeInfo(Attribute attribute, AttributeModifier modifier,
-            ItemAttributeDataManager.AttributeAction action) {
+            ItemAttributeDataManager.AttributeAction action, AttributeModifier.Operation targetOperation) {
     }
 
-    private record TooltipLineInfo(String attributeTranslationKey) {
+    private record TooltipLineInfo(String attributeTranslationKey, AttributeModifier.Operation operation) {
     }
 
     private record TooltipScan(Map<EquipmentSlot, Map<Attribute, Integer>> renderedCounts,

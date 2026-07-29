@@ -3,6 +3,7 @@ package com.etema.attributemodify.handler;
 import com.etema.attributemodify.AttributeModify;
 import com.etema.attributemodify.ItemAttributeDataManager;
 import com.etema.attributemodify.service.AttributeApplicationService;
+import com.etema.attributemodify.service.AttributeInspectionContext;
 import com.etema.attributemodify.service.AttributeResolutionService;
 
 import net.minecraft.world.item.ItemStack;
@@ -14,6 +15,10 @@ import java.util.List;
 public class ItemAttributeHandler {
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public void onItemAttributeModifier(ItemAttributeModifierEvent event) {
+        if (AttributeInspectionContext.isInspectingExternalAttributes()) {
+            return;
+        }
+
         ItemStack itemStack = event.getItemStack();
         if (itemStack.isEmpty()) {
             return;
@@ -25,7 +30,7 @@ public class ItemAttributeHandler {
         }
 
         if (dataManager.isDecorative(itemStack.getItem())) {
-            event.clearModifiers();
+            AttributeApplicationService.clearVanillaModifiers(event);
             return;
         }
 

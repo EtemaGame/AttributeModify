@@ -86,4 +86,38 @@ class EditableRuleSerializationTest {
         assertEquals(11.0, attribute.get("amount").getAsDouble());
         assertFalse(attribute.has("operation"));
     }
+
+    @Test
+    void preservesOperationForSelectiveRemove() {
+        JsonObject input = JsonParser.parseString("""
+                {"minecraft:diamond_sword":{"attributes":[{
+                  "attribute":"minecraft:generic.attack_speed",
+                  "action":"remove",
+                  "operation":"multiply_total"
+                }]}}
+                """).getAsJsonObject();
+
+        JsonObject attribute = EditorRuleSerializer.toDocument(EditorRuleSerializer.fromDocument(input))
+                .getAsJsonObject("minecraft:diamond_sword").getAsJsonArray("attributes")
+                .get(0).getAsJsonObject();
+
+        assertEquals("multiply_total", attribute.get("operation").getAsString());
+        assertFalse(attribute.has("amount"));
+    }
+
+    @Test
+    void keepsLegacyRemoveWithoutOperationAsRemoveAll() {
+        JsonObject input = JsonParser.parseString("""
+                {"minecraft:diamond_sword":{"attributes":[{
+                  "attribute":"minecraft:generic.attack_speed",
+                  "action":"remove"
+                }]}}
+                """).getAsJsonObject();
+
+        JsonObject attribute = EditorRuleSerializer.toDocument(EditorRuleSerializer.fromDocument(input))
+                .getAsJsonObject("minecraft:diamond_sword").getAsJsonArray("attributes")
+                .get(0).getAsJsonObject();
+
+        assertFalse(attribute.has("operation"));
+    }
 }

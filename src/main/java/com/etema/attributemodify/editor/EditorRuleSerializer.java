@@ -225,7 +225,9 @@ public final class EditorRuleSerializer {
 
             ResourceLocation attributeId = ResourceLocation.tryParse(object.get("attribute").getAsString());
             EditableAttributeAction action = EditableAttributeAction.fromString(readString(object, "action"));
-            EditableOperationType operation = EditableOperationType.fromString(readString(object, "operation"));
+            EditableOperationType operation = object.has("operation")
+                    ? EditableOperationType.fromString(readString(object, "operation"))
+                    : (action == EditableAttributeAction.REMOVE ? null : EditableOperationType.ADDITION);
             Double amount = object.has("amount") && object.get("amount").isJsonPrimitive()
                     ? object.get("amount").getAsDouble()
                     : null;
@@ -254,7 +256,7 @@ public final class EditorRuleSerializer {
         if (action != EditableAttributeAction.REMOVE && attribute.getAmount() != null) {
             object.addProperty("amount", attribute.getAmount());
         }
-        if (action != EditableAttributeAction.REMOVE && action != EditableAttributeAction.SET && attribute.getOperation() != null) {
+        if (action != EditableAttributeAction.SET && attribute.getOperation() != null) {
             object.addProperty("operation", attribute.getOperation().serializedName());
         }
         if (attribute.getModifierId() != null && !attribute.getModifierId().isBlank()) {

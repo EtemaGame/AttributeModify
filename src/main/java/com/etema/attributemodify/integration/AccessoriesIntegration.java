@@ -20,8 +20,11 @@ public class AccessoriesIntegration {
             try {
                 Class<?> handlerClass = Class.forName("com.etema.attributemodify.integration.AccessoriesEventHandler");
                 handlerClass.getDeclaredConstructor().newInstance();
-                AttributeModify.LOGGER.debug("Accessories detected - event integration enabled successfully");
-            } catch (Exception e) {
+                String version = ModList.get().getModContainerById("accessories")
+                        .map(container -> container.getModInfo().getVersion().toString())
+                        .orElse("unknown");
+                AttributeModify.LOGGER.debug("Accessories detected (version {}) - event integration enabled successfully", version);
+            } catch (Throwable e) {
                 AttributeModify.LOGGER.warn("Failed to initialize Accessories integration: {}", e.getMessage());
                 accessoriesLoaded = false;
             }

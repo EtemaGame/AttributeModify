@@ -89,6 +89,11 @@ public class SyncAttributeDataPacket {
                         buf.writeBoolean(false);
                     }
 
+                    buf.writeBoolean(attr.targetOperation() != null);
+                    if (attr.targetOperation() != null) {
+                        buf.writeEnum(attr.targetOperation());
+                    }
+
                     encodeNbtCondition(buf, attr.nbtCondition());
                 }
             }
@@ -137,6 +142,11 @@ public class SyncAttributeDataPacket {
                         buf.writeEnum(attr.modifier().getOperation());
                     } else {
                         buf.writeBoolean(false);
+                    }
+
+                    buf.writeBoolean(attr.targetOperation() != null);
+                    if (attr.targetOperation() != null) {
+                        buf.writeEnum(attr.targetOperation());
                     }
 
                     encodeNbtCondition(buf, attr.nbtCondition());
@@ -283,6 +293,9 @@ public class SyncAttributeDataPacket {
                         modifier = new AttributeModifier(id, name, amount, operation);
                     }
 
+                    AttributeModifier.Operation targetOperation = buf.readBoolean()
+                            ? buf.readEnum(AttributeModifier.Operation.class) : null;
+
                     ItemAttributeDataManager.NbtCondition nbtCondition = decodeNbtCondition(buf);
 
                     if (attr == null) {
@@ -293,7 +306,7 @@ public class SyncAttributeDataPacket {
                         continue;
                     }
 
-                    entries.add(new ItemAttributeDataManager.AttributeEntry(attr, modifier, action, nbtCondition));
+                    entries.add(new ItemAttributeDataManager.AttributeEntry(attr, modifier, action, targetOperation, nbtCondition));
                 }
                 slots.put(slot, entries);
             }
@@ -339,6 +352,9 @@ public class SyncAttributeDataPacket {
                         modifier = new AttributeModifier(id, name, amount, operation);
                     }
 
+                    AttributeModifier.Operation targetOperation = buf.readBoolean()
+                            ? buf.readEnum(AttributeModifier.Operation.class) : null;
+
                     ItemAttributeDataManager.NbtCondition nbtCondition = decodeNbtCondition(buf);
 
                     if (attr == null) {
@@ -349,7 +365,7 @@ public class SyncAttributeDataPacket {
                         continue;
                     }
 
-                    entries.add(new ItemAttributeDataManager.AttributeEntry(attr, modifier, action, nbtCondition));
+                    entries.add(new ItemAttributeDataManager.AttributeEntry(attr, modifier, action, targetOperation, nbtCondition));
                 }
                 slots.put(slotName, entries);
             }

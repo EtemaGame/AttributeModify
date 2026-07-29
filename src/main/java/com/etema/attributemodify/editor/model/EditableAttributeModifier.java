@@ -21,7 +21,8 @@ public final class EditableAttributeModifier {
         this.attributeId = attributeId;
         this.action = action == null ? EditableAttributeAction.ADD : action;
         this.amount = amount;
-        this.operation = operation == null ? EditableOperationType.ADDITION : operation;
+        this.operation = operation == null && this.action != EditableAttributeAction.REMOVE
+                ? EditableOperationType.ADDITION : operation;
         this.slotType = slotType == null ? EditableSlotType.AUTO : slotType;
         this.slot = slot;
     }
@@ -55,7 +56,8 @@ public final class EditableAttributeModifier {
     }
 
     public void setOperation(EditableOperationType operation) {
-        this.operation = operation == null ? EditableOperationType.ADDITION : operation;
+        this.operation = operation == null && action != EditableAttributeAction.REMOVE
+                ? EditableOperationType.ADDITION : operation;
     }
 
     public EditableSlotType getSlotType() {

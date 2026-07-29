@@ -1,5 +1,6 @@
 package com.etema.attributemodify.editor;
 
+import com.etema.attributemodify.service.AttributeInspectionContext;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.common.collect.Multimap;
@@ -8,6 +9,7 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.LinkedHashSet;
@@ -24,9 +26,13 @@ public final class EditorBaseAttributeService {
             return attributes;
         }
 
+        ItemStack inspectionStack = new ItemStack(item);
         Set<String> seen = new LinkedHashSet<>();
         for (EquipmentSlot slot : EquipmentSlot.values()) {
-            addModifiers(attributes, seen, slot, item.getDefaultAttributeModifiers(slot));
+            Multimap<Attribute, AttributeModifier> effectiveModifiers =
+                    AttributeInspectionContext.inspectExternalAttributes(
+                            () -> inspectionStack.getAttributeModifiers(slot));
+            addModifiers(attributes, seen, slot, effectiveModifiers);
         }
         return attributes;
     }

@@ -106,13 +106,15 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
         private final Attribute attribute;
         private final AttributeModifier modifier;
         private final AttributeAction action;
+        private final AttributeModifier.Operation targetOperation;
         private final NbtCondition nbtCondition;
 
         public AttributeEntry(Attribute attribute, AttributeModifier modifier, AttributeAction action,
-                NbtCondition nbtCondition) {
+                AttributeModifier.Operation targetOperation, NbtCondition nbtCondition) {
             this.attribute = attribute;
             this.modifier = modifier;
             this.action = action;
+            this.targetOperation = targetOperation;
             this.nbtCondition = nbtCondition;
         }
 
@@ -126,6 +128,11 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
 
         public AttributeAction action() {
             return action;
+        }
+
+        /** Operation selected by a REMOVE rule; null means every operation (legacy behavior). */
+        public AttributeModifier.Operation targetOperation() {
+            return targetOperation;
         }
 
         public NbtCondition nbtCondition() {
@@ -816,10 +823,14 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
                 }
 
                 if (action == AttributeAction.REMOVE) {
-                    entries.add(new AttributeEntry(attribute, null, action, nbtCondition));
+                    AttributeModifier.Operation targetOperation = attrObj.has("operation")
+                            ? parseOperation(attrObj.get("operation").getAsString())
+                            : null;
+                    entries.add(new AttributeEntry(attribute, null, action, targetOperation, nbtCondition));
                 } else {
-                    if (!attrObj.has("amount") && action != AttributeAction.REMOVE) {
+                    if (!attrObj.has("amount")) {
                         LOGGER.warn("Missing 'amount' for action {} on attribute {} (item {}, slot {})", action, attributeId, itemKey, slotKey);
+                        continue;
                     }
 
                     String attrSafe = attributeId
@@ -831,7 +842,7 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
                     String modifierIdString = attrObj.has("modifier_id") ? attrObj.get("modifier_id").getAsString()
                             : AttributeModify.MODID + ":modifier_" + itemSafe + "_" + slotSafe + "_" + attrSafe;
 
-                    double amount = attrObj.has("amount") ? attrObj.get("amount").getAsDouble() : 0.0;
+                    double amount = attrObj.get("amount").getAsDouble();
                     String operationStr = attrObj.has("operation") ? attrObj.get("operation").getAsString() : "addition";
                     AttributeModifier.Operation operation = parseOperation(operationStr);
 
@@ -854,7 +865,7 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
                     }
 
                     AttributeModifier modifier = new AttributeModifier(uuid, modifierIdString, amount, operation);
-                    entries.add(new AttributeEntry(attribute, modifier, action, nbtCondition));
+                    entries.add(new AttributeEntry(attribute, modifier, action, operation, nbtCondition));
                 }
 
             } catch (Exception e) {

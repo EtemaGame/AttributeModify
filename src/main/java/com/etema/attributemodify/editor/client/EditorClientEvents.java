@@ -4,6 +4,7 @@ import com.etema.attributemodify.AttributeModify;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import net.minecraft.client.Minecraft;
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.world.InteractionHand;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RegisterClientCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -21,5 +22,12 @@ public final class EditorClientEvents {
                     Minecraft.getInstance().setScreen(new AttributeModifyEditorScreen());
                     return 1;
                 }));
+
+        event.getDispatcher().register(LiteralArgumentBuilder.<CommandSourceStack>literal("attributemodify_inspect")
+                .executes(context -> ItemAttributeInspectCommand.inspect(InteractionHand.MAIN_HAND))
+                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("mainhand")
+                        .executes(context -> ItemAttributeInspectCommand.inspect(InteractionHand.MAIN_HAND)))
+                .then(LiteralArgumentBuilder.<CommandSourceStack>literal("offhand")
+                        .executes(context -> ItemAttributeInspectCommand.inspect(InteractionHand.OFF_HAND))));
     }
 }
