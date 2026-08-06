@@ -1,6 +1,6 @@
 package com.etema.attributemodify.mixin;
 
-import com.etema.attributemodify.ItemAttributeDataManager;
+import com.etema.attributemodify.compat.DecorativeCompatService;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -17,7 +17,7 @@ public abstract class LivingEntityMixin {
     private void attributemodify$blockEffectsWhenDecorative(MobEffectInstance effect, Entity source,
             CallbackInfoReturnable<Boolean> cir) {
         LivingEntity self = (LivingEntity) (Object) this;
-        if (ItemAttributeDataManager.getInstance().hasDecorativeEquipped(self)) {
+        if (DecorativeCompatService.shouldSuppressEffects(self)) {
             cir.setReturnValue(false);
         }
     }

@@ -1,6 +1,5 @@
 package com.etema.attributemodify.handler;
 
-import com.etema.attributemodify.ItemAttributeDataManager;
 import com.etema.attributemodify.compat.DecorativeCompatService;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.LivingEntity;
@@ -20,7 +19,7 @@ public class DecorativeEffectHandler {
         }
 
         Player player = event.player;
-        if (!DecorativeCompatService.shouldSuppressEffects(player)) {
+        if (!DecorativeCompatService.shouldClearEffects(player)) {
             return;
         }
 
@@ -30,7 +29,7 @@ public class DecorativeEffectHandler {
     @SubscribeEvent
     public static void onEquipmentChanged(LivingEquipmentChangeEvent event) {
         LivingEntity entity = event.getEntity();
-        if (entity.level().isClientSide || !DecorativeCompatService.shouldSuppressEffects(entity)) {
+        if (entity.level().isClientSide || !DecorativeCompatService.shouldClearEffects(entity)) {
             return;
         }
 

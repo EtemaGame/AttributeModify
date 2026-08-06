@@ -1,6 +1,6 @@
 package com.etema.attributemodify.mixin;
 
-import com.etema.attributemodify.ItemAttributeDataManager;
+import com.etema.attributemodify.compat.DecorativeCompatService;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -24,7 +24,7 @@ public abstract class ItemMixin {
     private void attributemodify$blockDecorativeUse(Level level, Player player, InteractionHand hand,
             CallbackInfoReturnable<InteractionResultHolder<ItemStack>> cir) {
         ItemStack stack = player.getItemInHand(hand);
-        if (isDecorative(stack)) {
+        if (DecorativeCompatService.shouldBlockUse(stack)) {
             cir.setReturnValue(InteractionResultHolder.fail(stack));
         }
     }
@@ -32,7 +32,7 @@ public abstract class ItemMixin {
     @Inject(method = "useOn", at = @At("HEAD"), cancellable = true)
     private void attributemodify$blockDecorativeUseOn(UseOnContext context,
             CallbackInfoReturnable<InteractionResult> cir) {
-        if (isDecorative(context.getItemInHand())) {
+        if (DecorativeCompatService.shouldBlockUse(context.getItemInHand())) {
             cir.setReturnValue(InteractionResult.FAIL);
         }
     }
@@ -40,7 +40,7 @@ public abstract class ItemMixin {
     @Inject(method = "canAttackBlock", at = @At("HEAD"), cancellable = true)
     private void attributemodify$blockDecorativeCanAttackBlock(BlockState state, Level level, BlockPos pos,
             Player player, CallbackInfoReturnable<Boolean> cir) {
-        if (isDecorative(player.getMainHandItem())) {
+        if (DecorativeCompatService.shouldBlockAttack(player.getMainHandItem())) {
             cir.setReturnValue(false);
         }
     }
@@ -48,13 +48,9 @@ public abstract class ItemMixin {
     @Inject(method = "hurtEnemy", at = @At("HEAD"), cancellable = true)
     private void attributemodify$blockDecorativeHurtEnemy(ItemStack stack, LivingEntity target,
             LivingEntity attacker, CallbackInfoReturnable<Boolean> cir) {
-        if (isDecorative(stack)) {
+        if (DecorativeCompatService.shouldBlockAttack(stack)) {
             cir.setReturnValue(false);
         }
     }
 
-    private static boolean isDecorative(ItemStack stack) {
-        return stack != null && !stack.isEmpty()
-                && ItemAttributeDataManager.getInstance().isDecorative(stack.getItem());
-    }
 }

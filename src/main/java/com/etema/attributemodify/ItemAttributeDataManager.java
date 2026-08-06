@@ -1,5 +1,6 @@
 package com.etema.attributemodify;
 
+import com.etema.attributemodify.compat.DecorativeItemPolicy;
 import com.etema.attributemodify.durability.DurabilityMode;
 import com.etema.attributemodify.durability.DurabilityRule;
 import com.etema.attributemodify.durability.DurabilityHelper;
@@ -51,6 +52,7 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
     private final Map<Item, List<MiningOverride>> miningOverrides = new java.util.concurrent.ConcurrentHashMap<>();
     private final Set<Item> decorativeItems = java.util.Collections.synchronizedSet(new HashSet<>());
     private final Set<Item> preserveDecorativeTooltipItems = java.util.Collections.synchronizedSet(new HashSet<>());
+    private final Map<Item, DecorativeItemPolicy> decorativePolicies = new java.util.concurrent.ConcurrentHashMap<>();
     private final List<Map.Entry<String, JsonObject>> deferredTagEntries = java.util.Collections
             .synchronizedList(new ArrayList<>());
 
@@ -466,6 +468,7 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
         miningOverrides.clear();
         decorativeItems.clear();
         preserveDecorativeTooltipItems.clear();
+        decorativePolicies.clear();
         deferredTagEntries.clear();
         durabilityRules.clear();
 
@@ -616,6 +619,10 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
             decorativeItems.add(item);
             if (DecorativeTooltipMode.parse(itemData) == DecorativeTooltipMode.PRESERVE) {
                 preserveDecorativeTooltipItems.add(item);
+            }
+            DecorativeItemPolicy policy = DecorativeItemPolicy.fromItemJson(itemData);
+            if (!DecorativeItemPolicy.DEFAULT.equals(policy)) {
+                decorativePolicies.put(item, policy);
             }
             LOGGER.debug("Marked item '{}' as decorative", itemKey);
         }
@@ -981,6 +988,12 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
                 : DecorativeTooltipMode.STRICT;
     }
 
+    public DecorativeItemPolicy getDecorativePolicy(Item item) {
+        return isDecorative(item)
+                ? decorativePolicies.getOrDefault(item, DecorativeItemPolicy.DEFAULT)
+                : DecorativeItemPolicy.DISABLED;
+    }
+
     public boolean shouldSuppressAttributeModifier(ItemStack stack, EquipmentSlot slot, Attribute attribute,
             AttributeModifier.Operation operation) {
         if (stack == null || stack.isEmpty() || slot == null || attribute == null || operation == null) {
@@ -1047,23 +1060,42 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
     }
 
     public boolean hasDecorativeEquipped(LivingEntity entity) {
+        return hasDecorativeEquipped(entity, ignored -> true);
+    }
+
+    public boolean hasEffectBlockingDecorativeEquipped(LivingEntity entity) {
+        return hasDecorativeEquipped(entity, DecorativeItemPolicy::blockAllEffects);
+    }
+
+    public boolean hasEffectClearingDecorativeEquipped(LivingEntity entity) {
+        return hasDecorativeEquipped(entity, DecorativeItemPolicy::clearExistingEffects);
+    }
+
+    private boolean hasDecorativeEquipped(LivingEntity entity,
+            java.util.function.Predicate<DecorativeItemPolicy> policyPredicate) {
         if (entity == null) {
             return false;
         }
 
         for (ItemStack stack : entity.getArmorSlots()) {
-            if (stack != null && !stack.isEmpty() && isDecorative(stack.getItem())) {
+            if (matchesDecorativePolicy(stack, policyPredicate)) {
                 return true;
             }
         }
 
         ItemStack mainHand = entity.getMainHandItem();
-        if (mainHand != null && !mainHand.isEmpty() && isDecorative(mainHand.getItem())) {
+        if (matchesDecorativePolicy(mainHand, policyPredicate)) {
             return true;
         }
 
         ItemStack offHand = entity.getOffhandItem();
-        return offHand != null && !offHand.isEmpty() && isDecorative(offHand.getItem());
+        return matchesDecorativePolicy(offHand, policyPredicate);
+    }
+
+    private boolean matchesDecorativePolicy(ItemStack stack,
+            java.util.function.Predicate<DecorativeItemPolicy> policyPredicate) {
+        return stack != null && !stack.isEmpty() && isDecorative(stack.getItem())
+                && policyPredicate.test(getDecorativePolicy(stack.getItem()));
     }
     public Map<Item, Map<EquipmentSlot, List<AttributeEntry>>> getStandardAttributesForSync() {
         Map<Item, Map<EquipmentSlot, List<AttributeEntry>>> copy = new HashMap<>();
@@ -1112,17 +1144,23 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
         return new HashSet<>(preserveDecorativeTooltipItems);
     }
 
+    public Map<Item, DecorativeItemPolicy> getDecorativePoliciesForSync() {
+        return new HashMap<>(decorativePolicies);
+    }
+
     public void updateFromServer(Map<Item, Map<EquipmentSlot, List<AttributeEntry>>> standardData,
             Map<Item, Map<String, List<AttributeEntry>>> curiosData,
             Map<Item, com.etema.attributemodify.durability.DurabilityRule> durabilityData,
             Map<Item, List<MiningOverride>> miningData,
             Set<Item> decorativeData,
-            Set<Item> preserveDecorativeTooltipData) {
+            Set<Item> preserveDecorativeTooltipData,
+            Map<Item, DecorativeItemPolicy> decorativePolicyData) {
         itemAttributes.clear();
         curiosAttributes.clear();
         miningOverrides.clear();
         decorativeItems.clear();
         preserveDecorativeTooltipItems.clear();
+        decorativePolicies.clear();
         durabilityRules.clear();
 
         if (standardData != null) {
@@ -1169,6 +1207,13 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
         if (preserveDecorativeTooltipData != null) {
             preserveDecorativeTooltipItems.addAll(preserveDecorativeTooltipData);
             preserveDecorativeTooltipItems.retainAll(decorativeItems);
+        }
+        if (decorativePolicyData != null) {
+            decorativePolicyData.forEach((item, policy) -> {
+                if (decorativeItems.contains(item) && policy != null && !DecorativeItemPolicy.DEFAULT.equals(policy)) {
+                    decorativePolicies.put(item, policy);
+                }
+            });
         }
     }
 

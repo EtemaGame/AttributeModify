@@ -20,7 +20,26 @@ public final class DecorativeCompatService {
     }
 
     public static boolean shouldSuppressEffects(LivingEntity entity) {
-        return entity != null && ItemAttributeDataManager.getInstance().hasDecorativeEquipped(entity);
+        return entity != null && ItemAttributeDataManager.getInstance().hasEffectBlockingDecorativeEquipped(entity);
+    }
+
+    public static boolean shouldClearEffects(LivingEntity entity) {
+        return entity != null && ItemAttributeDataManager.getInstance().hasEffectClearingDecorativeEquipped(entity);
+    }
+
+    public static boolean shouldBlockAttack(ItemStack stack) {
+        return isDecorative(stack) && ItemAttributeDataManager.getInstance()
+                .getDecorativePolicy(stack.getItem()).blockAttack();
+    }
+
+    public static boolean shouldBlockUse(ItemStack stack) {
+        return isDecorative(stack) && ItemAttributeDataManager.getInstance()
+                .getDecorativePolicy(stack.getItem()).blockUse();
+    }
+
+    private static boolean isDecorative(ItemStack stack) {
+        return stack != null && !stack.isEmpty()
+                && ItemAttributeDataManager.getInstance().isDecorative(stack.getItem());
     }
 
     public static String describeKnownFamily(ItemStack stack) {

@@ -1,7 +1,7 @@
 package com.etema.attributemodify.handler;
 
 import com.etema.attributemodify.AttributeModify;
-import com.etema.attributemodify.ItemAttributeDataManager;
+import com.etema.attributemodify.compat.DecorativeCompatService;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -20,7 +20,7 @@ public final class DecorativeItemInteractionHandler {
 
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onAttackEntity(AttackEntityEvent event) {
-        if (isDecorative(event.getEntity().getMainHandItem())) {
+        if (DecorativeCompatService.shouldBlockAttack(event.getEntity().getMainHandItem())) {
             event.setCanceled(true);
         }
     }
@@ -28,7 +28,7 @@ public final class DecorativeItemInteractionHandler {
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onBlockBreak(BlockEvent.BreakEvent event) {
         Player player = event.getPlayer();
-        if (player != null && isDecorative(player.getMainHandItem())) {
+        if (player != null && DecorativeCompatService.shouldBlockAttack(player.getMainHandItem())) {
             event.setCanceled(true);
         }
     }
@@ -55,27 +55,23 @@ public final class DecorativeItemInteractionHandler {
 
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onLeftClickBlock(PlayerInteractEvent.LeftClickBlock event) {
-        if (isDecorative(event.getItemStack())) {
+        if (DecorativeCompatService.shouldBlockAttack(event.getItemStack())) {
             event.setCanceled(true);
         }
     }
 
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onUseItemStart(LivingEntityUseItemEvent.Start event) {
-        if (isDecorative(event.getItem())) {
+        if (DecorativeCompatService.shouldBlockUse(event.getItem())) {
             event.setCanceled(true);
         }
     }
 
     private static void cancelInteraction(PlayerInteractEvent event, ItemStack stack) {
-        if (isDecorative(stack)) {
+        if (DecorativeCompatService.shouldBlockUse(stack)) {
             event.setCancellationResult(InteractionResult.FAIL);
             event.setCanceled(true);
         }
     }
 
-    private static boolean isDecorative(ItemStack stack) {
-        return stack != null && !stack.isEmpty()
-                && ItemAttributeDataManager.getInstance().isDecorative(stack.getItem());
-    }
 }

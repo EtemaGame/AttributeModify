@@ -1,6 +1,6 @@
 package com.etema.attributemodify.mixin;
 
-import com.etema.attributemodify.ItemAttributeDataManager;
+import com.etema.attributemodify.compat.DecorativeCompatService;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -16,7 +16,7 @@ public abstract class PlayerMixin {
     private void attributemodify$cancelDecorativeAttack(Entity target, CallbackInfo ci) {
         Player self = (Player) (Object) this;
         ItemStack stack = self.getMainHandItem();
-        if (!stack.isEmpty() && ItemAttributeDataManager.getInstance().isDecorative(stack.getItem())) {
+        if (DecorativeCompatService.shouldBlockAttack(stack)) {
             ci.cancel();
         }
     }

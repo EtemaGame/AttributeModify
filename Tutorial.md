@@ -462,6 +462,27 @@ mods, opt in per item:
 ```
 
 Accepted values are `strict` (the backward-compatible default) and `preserve`.
+
+The interaction policy can also be adjusted per decorative item. Every option
+defaults to `true`, so existing datapacks keep their current behavior:
+
+```json
+{
+  "minecraft:carved_pumpkin": {
+    "decorative": true,
+    "decorative_options": {
+      "block_all_effects": false,
+      "clear_existing_effects": false,
+      "block_attack": true,
+      "block_use": true
+    }
+  }
+}
+```
+
+`block_all_effects` rejects newly applied effects. `clear_existing_effects`
+removes active effects while the item is equipped. Disable both when unrelated
+potion or beacon effects must remain active.
 - they are still recognized by the sync system, so client and server stay in agreement
 
 ## 12. A few things to keep in mind
