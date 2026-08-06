@@ -695,6 +695,13 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
             }
         }
 
+        if (itemData.has("quality_system") && itemData.get("quality_system").isJsonObject()) {
+            QualityConfig qualityConfig = parseQualityConfig(item, itemData.getAsJsonObject("quality_system"));
+            if (qualityConfig != null) {
+                qualityConfigs.put(item, qualityConfig);
+            }
+        }
+
         if (itemData.has("mining") && itemData.get("mining").isJsonArray()) {
             List<MiningOverride> overrides = parseMiningOverrides(item, itemData.getAsJsonArray("mining"));
             if (!overrides.isEmpty()) {
@@ -1228,7 +1235,7 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
         return qualityConfigs.get(item);
     }
 
-    private QualityConfig parseQualityConfig(Item item, JsonObject qualityJson) {
+    QualityConfig parseQualityConfig(Item item, JsonObject qualityJson) {
         String tagPath = qualityJson.has("tag_path") ? qualityJson.get("tag_path").getAsString() : "quality";
 
         Set<String> triggers = new HashSet<>();
@@ -1245,6 +1252,10 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
 
         if (qualityJson.has("levels") && qualityJson.get("levels").isJsonArray()) {
             for (JsonElement levelEl : qualityJson.getAsJsonArray("levels")) {
+                if (!levelEl.isJsonObject()) {
+                    LOGGER.warn("Ignoring non-object quality level for item {}", getItemName(item));
+                    continue;
+                }
                 JsonObject levelObj = levelEl.getAsJsonObject();
                 JsonElement value = levelObj.get("value");
                 int weight = levelObj.has("weight") ? levelObj.get("weight").getAsInt() : 1;

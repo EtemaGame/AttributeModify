@@ -31,14 +31,7 @@ public class MiningTierHandler {
             if (override.speed() != null) {
                 float originalSpeed = event.getOriginalSpeed();
                 float baseToolSpeed = getBaseToolSpeed(heldItem);
-
-                if (baseToolSpeed > 1.0f && originalSpeed > 1.0f) {
-                    // Preserve enchantment/effect multipliers proportionally
-                    float ratio = originalSpeed / baseToolSpeed;
-                    event.setNewSpeed(override.speed() * ratio);
-                } else {
-                    event.setNewSpeed(override.speed());
-                }
+                event.setNewSpeed(computeConfiguredSpeed(override.speed(), originalSpeed, baseToolSpeed));
             }
             return; // First matching override wins
         }
@@ -83,17 +76,22 @@ public class MiningTierHandler {
         return tier;
     }
 
+    static float computeConfiguredSpeed(float configuredSpeed, float originalSpeed, float baseToolSpeed) {
+        if (baseToolSpeed > 1.0f && originalSpeed > 1.0f) {
+            return configuredSpeed * (originalSpeed / baseToolSpeed);
+        }
+        return configuredSpeed;
+    }
+
     public static ResourceLocation resolveTierId(String tierName) {
         if (tierName == null || tierName.isBlank()) {
             return null;
         }
 
-        String normalized = tierName.trim().toLowerCase();
-        normalized = switch (normalized) {
-            case "wooden" -> "wood";
-            case "golden" -> "gold";
-            default -> normalized;
-        };
+        String normalized = normalizeTierName(tierName);
+        if (normalized == null) {
+            return null;
+        }
 
         ResourceLocation explicit = ResourceLocation.tryParse(normalized);
         if (explicit != null && normalized.contains(":") && TierSortingRegistry.byName(explicit) != null) {
@@ -110,5 +108,18 @@ public class MiningTierHandler {
         }
 
         return null;
+    }
+
+    static String normalizeTierName(String tierName) {
+        if (tierName == null || tierName.isBlank()) {
+            return null;
+        }
+
+        String normalized = tierName.trim().toLowerCase(java.util.Locale.ROOT);
+        return switch (normalized) {
+            case "wooden" -> "wood";
+            case "golden" -> "gold";
+            default -> normalized;
+        };
     }
 }

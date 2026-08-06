@@ -1,6 +1,7 @@
 package com.etema.attributemodify;
 
 import com.google.gson.JsonObject;
+import com.google.gson.JsonArray;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import org.junit.jupiter.api.Test;
@@ -8,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -72,5 +74,33 @@ class ItemAttributeDataManagerTest {
 
         assertEquals(ItemAttributeDataManager.DecorativeTooltipMode.PRESERVE,
                 ItemAttributeDataManager.DecorativeTooltipMode.parse(itemData));
+    }
+
+    @Test
+    void parsesDocumentedQualitySystemConfiguration() {
+        JsonObject common = new JsonObject();
+        common.addProperty("value", "common");
+        common.addProperty("weight", 3);
+        JsonObject rare = new JsonObject();
+        rare.addProperty("value", "rare");
+        rare.addProperty("weight", 1);
+        JsonArray levels = new JsonArray();
+        levels.add(common);
+        levels.add(rare);
+        JsonArray triggers = new JsonArray();
+        triggers.add("craft");
+        triggers.add("loot");
+        JsonObject quality = new JsonObject();
+        quality.addProperty("tag_path", "attributemodify.quality");
+        quality.add("triggers", triggers);
+        quality.add("levels", levels);
+
+        ItemAttributeDataManager.QualityConfig config = ItemAttributeDataManager.getInstance()
+                .parseQualityConfig(null, quality);
+
+        assertEquals("attributemodify.quality", config.tagPath());
+        assertEquals(Set.of("craft", "loot"), config.triggers());
+        assertEquals(4, config.totalWeight());
+        assertEquals(2, config.levels().size());
     }
 }

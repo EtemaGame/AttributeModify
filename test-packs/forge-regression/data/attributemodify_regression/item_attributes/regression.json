@@ -1,0 +1,45 @@
+{
+  "minecraft:stick": {
+    "equipment_slots": {
+      "mainhand": [
+        {
+          "attribute": "minecraft:generic.attack_damage",
+          "action": "add",
+          "amount": 3.0,
+          "operation": "add_value"
+        }
+      ]
+    }
+  },
+  "minecraft:wooden_sword": {
+    "durability": 96
+  },
+  "minecraft:iron_pickaxe": {
+    "mining": [
+      {
+        "speed": 8.0,
+        "tier": "diamond"
+      }
+    ]
+  },
+  "minecraft:golden_apple": {
+    "quality_system": {
+      "tag_path": "attributemodify.quality",
+      "triggers": ["craft", "loot"],
+      "levels": [
+        { "value": "common", "weight": 3 },
+        { "value": "rare", "weight": 1 }
+      ]
+    }
+  },
+  "minecraft:carved_pumpkin": {
+    "decorative": true,
+    "decorative_tooltip": "preserve",
+    "decorative_options": {
+      "block_all_effects": false,
+      "clear_existing_effects": false,
+      "block_attack": true,
+      "block_use": true
+    }
+  }
+}
