@@ -29,18 +29,22 @@ public class SyncAttributeDataPacket {
     private final Map<Item, com.etema.attributemodify.durability.DurabilityRule> durabilityRules;
     private final Map<Item, List<ItemAttributeDataManager.MiningOverride>> miningOverrides;
     private final java.util.Set<Item> decorativeItems;
+    private final java.util.Set<Item> preserveDecorativeTooltipItems;
 
     public SyncAttributeDataPacket(
             Map<Item, Map<EquipmentSlot, List<ItemAttributeDataManager.AttributeEntry>>> standard,
             Map<Item, Map<String, List<ItemAttributeDataManager.AttributeEntry>>> curios,
             Map<Item, com.etema.attributemodify.durability.DurabilityRule> durabilityRules,
             Map<Item, List<ItemAttributeDataManager.MiningOverride>> mining,
-            java.util.Set<Item> decorative) {
+            java.util.Set<Item> decorative,
+            java.util.Set<Item> preserveDecorativeTooltip) {
         this.standardAttributes = deepCopyStandard(standard);
         this.curiosAttributes = deepCopyCurios(curios);
         this.durabilityRules = copyDurabilityMap(durabilityRules);
         this.miningOverrides = copyMiningMap(mining);
         this.decorativeItems = decorative != null ? new java.util.HashSet<>(decorative) : new java.util.HashSet<>();
+        this.preserveDecorativeTooltipItems = preserveDecorativeTooltip != null
+                ? new java.util.HashSet<>(preserveDecorativeTooltip) : new java.util.HashSet<>();
     }
 
     public static void encode(SyncAttributeDataPacket packet, FriendlyByteBuf buf) {
@@ -215,6 +219,20 @@ public class SyncAttributeDataPacket {
 
         buf.writeInt(decorativeCount);
         for (Item item : packet.decorativeItems) {
+            ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(item);
+            if (itemId != null) {
+                buf.writeResourceLocation(itemId);
+            }
+        }
+
+        int preserveTooltipCount = 0;
+        for (Item item : packet.preserveDecorativeTooltipItems) {
+            if (ForgeRegistries.ITEMS.getKey(item) != null) {
+                preserveTooltipCount++;
+            }
+        }
+        buf.writeInt(preserveTooltipCount);
+        for (Item item : packet.preserveDecorativeTooltipItems) {
             ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(item);
             if (itemId != null) {
                 buf.writeResourceLocation(itemId);
@@ -441,7 +459,21 @@ public class SyncAttributeDataPacket {
             }
         }
 
-        return new SyncAttributeDataPacket(standard, curios, durability, mining, decorative);
+        java.util.Set<Item> preserveDecorativeTooltip = new java.util.HashSet<>();
+        if (buf.isReadable()) {
+            int preserveTooltipSize = buf.readInt();
+            preserveDecorativeTooltip = new java.util.HashSet<>(preserveTooltipSize);
+            for (int i = 0; i < preserveTooltipSize; i++) {
+                ResourceLocation itemLoc = buf.readResourceLocation();
+                Item item = ForgeRegistries.ITEMS.getValue(itemLoc);
+                if (item != null) {
+                    preserveDecorativeTooltip.add(item);
+                }
+            }
+        }
+
+        return new SyncAttributeDataPacket(standard, curios, durability, mining, decorative,
+                preserveDecorativeTooltip);
     }
 
     public static void handle(SyncAttributeDataPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
@@ -452,7 +484,8 @@ public class SyncAttributeDataPacket {
                     packet.curiosAttributes,
                     packet.durabilityRules,
                     packet.miningOverrides,
-                    packet.decorativeItems);
+                    packet.decorativeItems,
+                    packet.preserveDecorativeTooltipItems);
             // AttributeModify.LOGGER.info("Client synchronized attribute data from
             // server");
         });

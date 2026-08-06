@@ -44,7 +44,12 @@ public class TooltipPresentationService {
         List<Component> tooltip = event.getToolTip();
 
         if (ItemAttributeDataManager.getInstance().isDecorative(itemStack.getItem())) {
-            trimDecorativeTooltip(tooltip);
+            if (ItemAttributeDataManager.getInstance().getDecorativeTooltipMode(itemStack.getItem())
+                    == ItemAttributeDataManager.DecorativeTooltipMode.PRESERVE) {
+                stripAttributeSections(tooltip);
+            } else {
+                trimDecorativeTooltip(tooltip);
+            }
             return;
         }
 
@@ -68,6 +73,26 @@ public class TooltipPresentationService {
         Component title = tooltip.get(0);
         tooltip.clear();
         tooltip.add(title);
+    }
+
+    static void stripAttributeSections(List<Component> tooltip) {
+        for (int i = 0; i < tooltip.size(); i++) {
+            if (detectLogicalSlotHeader(tooltip.get(i)) == null) {
+                continue;
+            }
+
+            int sectionStart = i;
+            int sectionEnd = i + 1;
+            while (sectionEnd < tooltip.size() && extractTooltipLineInfo(tooltip.get(sectionEnd)) != null) {
+                sectionEnd++;
+            }
+
+            if (sectionStart > 0 && tooltip.get(sectionStart - 1).getString().isBlank()) {
+                sectionStart--;
+            }
+            tooltip.subList(sectionStart, sectionEnd).clear();
+            i = sectionStart - 1;
+        }
     }
 
     /**

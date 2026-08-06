@@ -52,6 +52,7 @@ public class NetworkEventHandler {
             var durabilityData = dataManager.getDurabilityRulesForSync();
             var miningData = dataManager.getMiningOverridesForSync();
             var decorativeData = dataManager.getDecorativeItemsForSync();
+            var preserveDecorativeTooltipData = dataManager.getPreserveDecorativeTooltipItemsForSync();
 
             if (standardData == null) {
                 standardData = java.util.Map.of();
@@ -68,11 +69,14 @@ public class NetworkEventHandler {
             if (decorativeData == null) {
                 decorativeData = java.util.Set.of();
             }
+            if (preserveDecorativeTooltipData == null) {
+                preserveDecorativeTooltipData = java.util.Set.of();
+            }
 
             if (!standardData.isEmpty() || !curiosData.isEmpty() || !durabilityData.isEmpty() || !miningData.isEmpty()
                     || !decorativeData.isEmpty()) {
                 SyncAttributeDataPacket packet = new SyncAttributeDataPacket(standardData, curiosData, durabilityData,
-                        miningData, decorativeData);
+                        miningData, decorativeData, preserveDecorativeTooltipData);
                 NetworkHandler.INSTANCE.send(PacketDistributor.PLAYER.with(() -> player), packet);
 
                 AttributeModify.LOGGER.debug("Sent attribute data to player {}: {} standard, {} curios, {} durability",

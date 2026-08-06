@@ -1,5 +1,6 @@
 package com.etema.attributemodify;
 
+import com.google.gson.JsonObject;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import org.junit.jupiter.api.Test;
@@ -56,5 +57,20 @@ class ItemAttributeDataManagerTest {
                 AttributeModifier.Operation.ADDITION, AttributeModifier.Operation.ADDITION));
         assertFalse(ItemAttributeDataManager.removalOperationMatches(
                 AttributeModifier.Operation.ADDITION, AttributeModifier.Operation.MULTIPLY_BASE));
+    }
+
+    @Test
+    void decorativeTooltipModeDefaultsToStrictForExistingDatapacks() {
+        assertEquals(ItemAttributeDataManager.DecorativeTooltipMode.STRICT,
+                ItemAttributeDataManager.DecorativeTooltipMode.parse(new JsonObject()));
+    }
+
+    @Test
+    void decorativeTooltipModeAcceptsPreserveOptIn() {
+        JsonObject itemData = new JsonObject();
+        itemData.addProperty("decorative_tooltip", "preserve");
+
+        assertEquals(ItemAttributeDataManager.DecorativeTooltipMode.PRESERVE,
+                ItemAttributeDataManager.DecorativeTooltipMode.parse(itemData));
     }
 }

@@ -50,10 +50,30 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
     private final Map<Item, QualityConfig> qualityConfigs = new java.util.concurrent.ConcurrentHashMap<>();
     private final Map<Item, List<MiningOverride>> miningOverrides = new java.util.concurrent.ConcurrentHashMap<>();
     private final Set<Item> decorativeItems = java.util.Collections.synchronizedSet(new HashSet<>());
+    private final Set<Item> preserveDecorativeTooltipItems = java.util.Collections.synchronizedSet(new HashSet<>());
     private final List<Map.Entry<String, JsonObject>> deferredTagEntries = java.util.Collections
             .synchronizedList(new ArrayList<>());
 
     public record QualityLevel(JsonElement value, int weight) {
+    }
+
+    public enum DecorativeTooltipMode {
+        STRICT,
+        PRESERVE;
+
+        static DecorativeTooltipMode parse(JsonObject itemData) {
+            if (itemData == null || !itemData.has("decorative_tooltip")
+                    || !itemData.get("decorative_tooltip").isJsonPrimitive()
+                    || !itemData.get("decorative_tooltip").getAsJsonPrimitive().isString()) {
+                return STRICT;
+            }
+
+            String value = itemData.get("decorative_tooltip").getAsString().trim().toLowerCase(java.util.Locale.ROOT);
+            return switch (value) {
+                case "preserve", "attributes_only" -> PRESERVE;
+                default -> STRICT;
+            };
+        }
     }
 
     public record QualityConfig(String tagPath, String[] pathParts, Set<String> triggers, List<QualityLevel> levels, int totalWeight) {
@@ -445,6 +465,7 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
         qualityConfigs.clear();
         miningOverrides.clear();
         decorativeItems.clear();
+        preserveDecorativeTooltipItems.clear();
         deferredTagEntries.clear();
         durabilityRules.clear();
 
@@ -593,6 +614,9 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
                 && itemData.get("decorative").getAsJsonPrimitive().isBoolean()
                 && itemData.get("decorative").getAsBoolean()) {
             decorativeItems.add(item);
+            if (DecorativeTooltipMode.parse(itemData) == DecorativeTooltipMode.PRESERVE) {
+                preserveDecorativeTooltipItems.add(item);
+            }
             LOGGER.debug("Marked item '{}' as decorative", itemKey);
         }
 
@@ -951,6 +975,12 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
         return decorativeItems.contains(item);
     }
 
+    public DecorativeTooltipMode getDecorativeTooltipMode(Item item) {
+        return preserveDecorativeTooltipItems.contains(item)
+                ? DecorativeTooltipMode.PRESERVE
+                : DecorativeTooltipMode.STRICT;
+    }
+
     public boolean shouldSuppressAttributeModifier(ItemStack stack, EquipmentSlot slot, Attribute attribute,
             AttributeModifier.Operation operation) {
         if (stack == null || stack.isEmpty() || slot == null || attribute == null || operation == null) {
@@ -1078,15 +1108,21 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
         return new HashSet<>(decorativeItems);
     }
 
+    public Set<Item> getPreserveDecorativeTooltipItemsForSync() {
+        return new HashSet<>(preserveDecorativeTooltipItems);
+    }
+
     public void updateFromServer(Map<Item, Map<EquipmentSlot, List<AttributeEntry>>> standardData,
             Map<Item, Map<String, List<AttributeEntry>>> curiosData,
             Map<Item, com.etema.attributemodify.durability.DurabilityRule> durabilityData,
             Map<Item, List<MiningOverride>> miningData,
-            Set<Item> decorativeData) {
+            Set<Item> decorativeData,
+            Set<Item> preserveDecorativeTooltipData) {
         itemAttributes.clear();
         curiosAttributes.clear();
         miningOverrides.clear();
         decorativeItems.clear();
+        preserveDecorativeTooltipItems.clear();
         durabilityRules.clear();
 
         if (standardData != null) {
@@ -1129,6 +1165,10 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
 
         if (decorativeData != null) {
             decorativeItems.addAll(decorativeData);
+        }
+        if (preserveDecorativeTooltipData != null) {
+            preserveDecorativeTooltipItems.addAll(preserveDecorativeTooltipData);
+            preserveDecorativeTooltipItems.retainAll(decorativeItems);
         }
     }
 

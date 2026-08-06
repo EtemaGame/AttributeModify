@@ -447,6 +447,21 @@ Decorative items are treated as ornamental only:
 - the tooltip is reduced to the item name and the minimum extra lines the client still adds
 - attacks, mining, item use, and entity or block interactions are blocked
 - active status effects are cleared while the item is equipped in a hand or armor slot
+
+Existing datapacks keep the strict tooltip behavior. To hide only attribute sections
+while preserving lore, enchantments, durability, quality, and information from other
+mods, opt in per item:
+
+```json
+{
+  "minecraft:carved_pumpkin": {
+    "decorative": true,
+    "decorative_tooltip": "preserve"
+  }
+}
+```
+
+Accepted values are `strict` (the backward-compatible default) and `preserve`.
 - they are still recognized by the sync system, so client and server stay in agreement
 
 ## 12. A few things to keep in mind
