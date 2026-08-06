@@ -1165,9 +1165,6 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
         itemAttributes.clear();
         curiosAttributes.clear();
         miningOverrides.clear();
-        decorativeItems.clear();
-        preserveDecorativeTooltipItems.clear();
-        decorativePolicies.clear();
         durabilityRules.clear();
 
         if (standardData != null) {
@@ -1208,17 +1205,29 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
             }
         }
 
+        replaceDecorativeState(decorativeItems, preserveDecorativeTooltipItems, decorativePolicies,
+                decorativeData, preserveDecorativeTooltipData, decorativePolicyData);
+    }
+
+    static <T> void replaceDecorativeState(Set<T> decorativeTarget, Set<T> preserveTooltipTarget,
+            Map<T, DecorativeItemPolicy> policyTarget, Set<T> decorativeData, Set<T> preserveTooltipData,
+            Map<T, DecorativeItemPolicy> policyData) {
+        decorativeTarget.clear();
+        preserveTooltipTarget.clear();
+        policyTarget.clear();
+
         if (decorativeData != null) {
-            decorativeItems.addAll(decorativeData);
+            decorativeTarget.addAll(decorativeData);
         }
-        if (preserveDecorativeTooltipData != null) {
-            preserveDecorativeTooltipItems.addAll(preserveDecorativeTooltipData);
-            preserveDecorativeTooltipItems.retainAll(decorativeItems);
+        if (preserveTooltipData != null) {
+            preserveTooltipTarget.addAll(preserveTooltipData);
+            preserveTooltipTarget.retainAll(decorativeTarget);
         }
-        if (decorativePolicyData != null) {
-            decorativePolicyData.forEach((item, policy) -> {
-                if (decorativeItems.contains(item) && policy != null && !DecorativeItemPolicy.DEFAULT.equals(policy)) {
-                    decorativePolicies.put(item, policy);
+        if (policyData != null) {
+            policyData.forEach((key, policy) -> {
+                if (decorativeTarget.contains(key) && policy != null
+                        && !DecorativeItemPolicy.DEFAULT.equals(policy)) {
+                    policyTarget.put(key, policy);
                 }
             });
         }

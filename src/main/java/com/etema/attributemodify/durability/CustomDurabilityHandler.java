@@ -50,6 +50,12 @@ public class CustomDurabilityHandler {
         scanPlayerInventory(event.getEntity());
     }
 
+    @SubscribeEvent
+    public static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
+        String playerPrefix = event.getEntity().getUUID() + "|";
+        RECENT_TRIGGER_TICKS.keySet().removeIf(key -> key.startsWith(playerPrefix));
+    }
+
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void onAttackEntity(AttackEntityEvent event) {
         Player player = event.getEntity();

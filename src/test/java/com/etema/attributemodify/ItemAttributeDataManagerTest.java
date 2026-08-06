@@ -2,6 +2,7 @@ package com.etema.attributemodify;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonArray;
+import com.etema.attributemodify.compat.DecorativeItemPolicy;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import org.junit.jupiter.api.Test;
@@ -102,5 +103,25 @@ class ItemAttributeDataManagerTest {
         assertEquals(Set.of("craft", "loot"), config.triggers());
         assertEquals(4, config.totalWeight());
         assertEquals(2, config.levels().size());
+    }
+
+    @Test
+    void repeatedServerSyncReplacesDecorativeStateCompletely() {
+        Set<String> decorative = new java.util.HashSet<>();
+        Set<String> preserveTooltip = new java.util.HashSet<>();
+        Map<String, DecorativeItemPolicy> policies = new java.util.HashMap<>();
+        DecorativeItemPolicy customPolicy = new DecorativeItemPolicy(false, false, true, false);
+
+        ItemAttributeDataManager.replaceDecorativeState(decorative, preserveTooltip, policies,
+                Set.of("first"), Set.of("first"), Map.of("first", customPolicy));
+        assertEquals(Set.of("first"), decorative);
+        assertEquals(Set.of("first"), preserveTooltip);
+        assertEquals(Map.of("first", customPolicy), policies);
+
+        ItemAttributeDataManager.replaceDecorativeState(decorative, preserveTooltip, policies,
+                Set.of("second"), Set.of("stale"), Map.of("first", customPolicy));
+        assertEquals(Set.of("second"), decorative);
+        assertTrue(preserveTooltip.isEmpty());
+        assertTrue(policies.isEmpty());
     }
 }
