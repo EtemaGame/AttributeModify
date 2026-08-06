@@ -1540,7 +1540,6 @@ public final class AttributeModifyEditorScreen extends Screen {
         }
 
         // drawerValueBox: real EditBox painted over our INPUT_BG background
-        // Position it exactly matching the renderInputBg call in renderDrawerBackground
         if (drawerValueBox != null) {
             drawerValueBox.setX(dx + pad + 4);
             drawerValueBox.setY(layout.drawerFieldValueY() + 5);
@@ -2025,11 +2024,6 @@ public final class AttributeModifyEditorScreen extends Screen {
         g.drawString(font, label, x, inputY - 9 - 2, TEXT_DIM, false);
     }
 
-    private void renderInputBg(GuiGraphics g, int x, int y, int w, int h, boolean enabled) {
-        g.fill(x, y, x + w, y + h, enabled ? INPUT_BG : PANEL_DIM);
-        drawBorder(g, x, y, w, h, enabled ? BORDER : BORDER_SOFT);
-    }
-
     private void drawSmallButton(GuiGraphics g, Rect2i r, String label, boolean enabled, boolean hover) {
         int border = !enabled ? BORDER_SOFT : (hover ? ACCENT : BORDER);
         int color  = !enabled ? TEXT_MUTED  : ACCENT;
@@ -2131,10 +2125,6 @@ public final class AttributeModifyEditorScreen extends Screen {
         return v.isBlank() || v.matches("-?\\d*(\\.\\d*)?%?");
     }
 
-    private boolean isTierInput(String v) {
-        return v.isBlank() || v.matches("[A-Za-z0-9_:.\\-]*");
-    }
-
     private Integer parseDurabilityInput(String raw) {
         if (raw == null || raw.isBlank()) {
             return null;
@@ -2200,13 +2190,6 @@ public final class AttributeModifyEditorScreen extends Screen {
             default -> normalized;
         };
         return normalized.contains(":") ? normalized : "minecraft:" + normalized;
-    }
-
-    private String truncateTierList() {
-        if (miningTiers.size() <= 4) {
-            return String.join(", ", miningTiers);
-        }
-        return String.join(", ", miningTiers.subList(0, 4)) + " +" + (miningTiers.size() - 4);
     }
 
     private String attrDisplayName(ResourceLocation id) {

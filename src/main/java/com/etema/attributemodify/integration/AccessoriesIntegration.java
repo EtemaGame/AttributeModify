@@ -25,7 +25,7 @@ public class AccessoriesIntegration {
                         .orElse("unknown");
                 AttributeModify.LOGGER.debug("Accessories detected (version {}) - event integration enabled successfully", version);
             } catch (Throwable e) {
-                AttributeModify.LOGGER.warn("Failed to initialize Accessories integration: {}", e.getMessage());
+                AttributeModify.LOGGER.warn("Failed to initialize Accessories integration: {}", e.getMessage(), e);
                 accessoriesLoaded = false;
             }
         }

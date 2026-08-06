@@ -38,6 +38,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
@@ -182,12 +184,32 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
         private final String operator;
         private final JsonElement value;
         private final String[] pathParts;
+        private final Pattern regexPattern;
 
         public NbtCondition(String path, String operator, JsonElement value) {
             this.path = path;
             this.operator = operator != null ? operator : "equals";
             this.value = value;
             this.pathParts = path.split("\\.");
+            this.regexPattern = compileRegexPattern(path, this.operator, value);
+        }
+
+        private static Pattern compileRegexPattern(String path, String operator, JsonElement value) {
+            if (!"matches_regex".equals(operator) || value == null || value.isJsonNull()) {
+                return null;
+            }
+
+            String expression = value.isJsonPrimitive() ? value.getAsString() : value.toString();
+            try {
+                return Pattern.compile(expression);
+            } catch (PatternSyntaxException e) {
+                LOGGER.warn("Invalid regex pattern '{}' for NBT path '{}': {}", expression, path, e.getMessage());
+                return null;
+            }
+        }
+
+        boolean matchesRegex(String candidate) {
+            return regexPattern != null && regexPattern.matcher(candidate).matches();
         }
 
         public String getPath() {
@@ -355,12 +377,7 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
                     case "ends_with":
                         return tagStr.endsWith(expectedStr);
                     case "matches_regex":
-                        try {
-                            return tagStr.matches(expectedStr);
-                        } catch (java.util.regex.PatternSyntaxException e) {
-                            LOGGER.error("Invalid regex pattern '{}': {}", expectedStr, e.getMessage());
-                            return false;
-                        }
+                        return matchesRegex(tagStr);
                     case "greater":
                     case ">":
                         return tagStr.compareTo(expectedStr) > 0;
@@ -989,6 +1006,10 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
         return decorativeItems.contains(item);
     }
 
+    public boolean hasDecorativeItems() {
+        return !decorativeItems.isEmpty();
+    }
+
     public DecorativeTooltipMode getDecorativeTooltipMode(Item item) {
         return preserveDecorativeTooltipItems.contains(item)
                 ? DecorativeTooltipMode.PRESERVE
@@ -1080,7 +1101,7 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
 
     private boolean hasDecorativeEquipped(LivingEntity entity,
             java.util.function.Predicate<DecorativeItemPolicy> policyPredicate) {
-        if (entity == null) {
+        if (entity == null || !hasDecorativeItems()) {
             return false;
         }
 
@@ -1132,6 +1153,10 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
 
     public Map<Item, com.etema.attributemodify.durability.DurabilityRule> getDurabilityRulesForSync() {
         return new HashMap<>(durabilityRules);
+    }
+
+    public boolean hasDurabilityRules() {
+        return !durabilityRules.isEmpty();
     }
 
     public com.etema.attributemodify.durability.DurabilityRule getDurabilityRule(Item item) {

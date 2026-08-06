@@ -1,24 +1,34 @@
 # AttributeModify
 
-AttributeModify is a Forge 1.20.1 mod that changes item behavior through datapacks without requiring custom item classes.
+**Version 1.2.4 | Minecraft 1.20.1 | Forge**
 
-Current mod version: `1.2.3`
+Modify item attributes and related item behavior through datapacks. The mod supports vanilla and modded attributes, mining overrides, durability, decorative profiles, weighted quality data, and optional Curios or Accessories slots.
+
+AttributeModify and NeoAttributeModify are published on the same CurseForge and Modrinth project pages. Install only the file that matches your Minecraft version and mod loader.
+
+## Available Versions
+
+| Mod | Minecraft | Loader |
+| --- | --- | --- |
+| AttributeModify | 1.20.1 | Forge |
+| NeoAttributeModify | 1.21.1 | NeoForge |
+
+The Forge and NeoForge files are not interchangeable.
 
 ## Features
 
-- Add, modify, set, or remove item attributes by equipment slot
-- Remove a complete attribute or only modifiers using one operation
-- Support vanilla slots plus optional Curios and Accessories slots
-- Override mining speed while preserving proportional bonuses and penalties
-- Use vanilla or modded registered mining tiers
-- Override vanilla durability or add custom durability to normally unbreakable items
-- Roll weighted quality values on craft, loot, or villager trade events
-- Integrate quality rarity paths with Apotheosis when it is installed
-- Mark items as decorative and configure tooltip, combat, use, and effect restrictions
+- Add, replace, set, or remove item attribute modifiers
+- Remove one modifier operation without removing the others
+- Override mining speed while preserving external speed multipliers
+- Raise harvest capability to vanilla or modded mining tier requirements
+- Override durability and custom durability triggers
+- Disable functional behavior for decorative items without deleting unrelated player effects
+- Roll weighted quality data on craft, loot, or villager trade events
+- Generate rules through the in-game editor
 - Apply rules conditionally using NBT paths
-- Edit rules in game and inspect final attribute origins
-- Synchronize datapack rules between dedicated server and clients
-- Reload rules with `/reload`
+- Works with vanilla and modded items
+- Multiplayer friendly and `/reload` compatible
+- Keeps Curios and Accessories rule storage isolated
 
 ## Requirements
 
@@ -34,56 +44,37 @@ Optional integrations:
 
 AttributeModify starts normally when these optional mods are absent.
 
-## Datapack Location
+## Datapack Layout
 
-Place JSON files in:
+Place the datapack inside `<world>/datapacks/`. Attribute files belong under `data/<namespace>/item_attributes/`:
 
 ```text
-data/<namespace>/item_attributes/<file>.json
+MyAttributePack/
+|-- pack.mcmeta
+`-- data/
+    `-- my_namespace/
+        `-- item_attributes/
+            `-- tools.json
 ```
 
-Minimal example:
+Minecraft 1.20.1 uses datapack format `15`:
 
 ```json
 {
-  "minecraft:diamond_sword": {
-    "equipment_slots": {
-      "mainhand": [
-        {
-          "attribute": "minecraft:generic.attack_damage",
-          "action": "add",
-          "amount": 5.0,
-          "operation": "add_value"
-        }
-      ]
-    }
+  "pack": {
+    "pack_format": 15,
+    "description": "My AttributeModify rules"
   }
 }
 ```
 
-Run `/reload` after adding or changing datapack files.
+Run `/reload` after changing a datapack.
 
-## Client Commands
+## Client Command
 
-- `/attributemodify_editor` opens the rule editor. Saving requires the singleplayer owner or permission level 2 on a server.
-- `/attributemodify_inspect` inspects the main-hand item.
-- `/attributemodify_inspect mainhand` inspects the main-hand item explicitly.
-- `/attributemodify_inspect offhand` inspects the off-hand item.
+- `/attributemodify_editor` opens the rule editor.
 
-The inspector reports default modifiers, modifiers injected by other events or mods, matching AttributeModify rules, and the effective final result. The complete report is also written to `latest.log`.
-
-## Documentation
-
-The complete step-by-step tutorial and version-specific regression examples are
-published separately with the project description and in the support community.
-
-## Build
-
-```text
-gradlew clean test jar
-```
-
-The reobfuscated mod is generated under `build/libs/`.
+The editor writes `AttributeModify_Editor` into the current world's datapack directory. Saving requires the singleplayer owner or permission level `2` on a server.
 
 ## Support
 

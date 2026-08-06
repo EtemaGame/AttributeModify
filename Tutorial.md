@@ -2,7 +2,7 @@
 
 This guide explains the mod step by step. It is written to be practical rather than formal.
 
-This document targets AttributeModify `1.2.3` for Forge and Minecraft `1.20.1`.
+This document targets AttributeModify `1.2.4` for Forge and Minecraft `1.20.1`.
 
 ## 1. What the mod does
 
@@ -549,7 +549,7 @@ defaults to `true`, so existing datapacks keep their current behavior:
 removes active effects while the item is equipped. Disable both when unrelated
 potion or beacon effects must remain active.
 
-## 12. Editor and diagnostic commands
+## 12. In-game editor
 
 Open the in-game editor with:
 
@@ -563,22 +563,8 @@ availability. Saving is allowed for the singleplayer owner or players with
 permission level 2. The editor writes its managed datapack and then asks you to
 run `/reload`.
 
-Inspect the item in either hand with:
-
-```text
-/attributemodify_inspect
-/attributemodify_inspect mainhand
-/attributemodify_inspect offhand
-```
-
-The report separates:
-
-- `DEFAULT`: modifiers supplied by the item
-- `EXTERNAL`: modifiers visible without AttributeModify processing
-- `RULES`: matching datapack rules
-- `EFFECTIVE`: the final modifiers after every rule and integration
-
-The complete diagnostic report is also written to `latest.log`.
+The editor loads the item's base attributes and combines them with the managed
+rules so you can add, modify, or remove entries from one screen.
 
 ## 13. Compatibility
 

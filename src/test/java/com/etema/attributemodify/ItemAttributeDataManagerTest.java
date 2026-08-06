@@ -2,6 +2,7 @@ package com.etema.attributemodify;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonPrimitive;
 import com.etema.attributemodify.compat.DecorativeItemPolicy;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
@@ -123,5 +124,23 @@ class ItemAttributeDataManagerTest {
         assertEquals(Set.of("second"), decorative);
         assertTrue(preserveTooltip.isEmpty());
         assertTrue(policies.isEmpty());
+    }
+
+    @Test
+    void regexNbtConditionMatchesUsingItsPrecompiledPattern() {
+        ItemAttributeDataManager.NbtCondition condition = new ItemAttributeDataManager.NbtCondition(
+                "quality", "matches_regex", new JsonPrimitive("rare|mythic"));
+
+        assertTrue(condition.matchesRegex("mythic"));
+        assertFalse(condition.matchesRegex("common"));
+    }
+
+    @Test
+    void invalidRegexNbtConditionFailsClosed() {
+        ItemAttributeDataManager.NbtCondition condition = new ItemAttributeDataManager.NbtCondition(
+                "quality", "matches_regex", new JsonPrimitive("[invalid"));
+
+        assertFalse(condition.matchesRegex("mythic"));
+        assertFalse(condition.matchesRegex("mythic"));
     }
 }

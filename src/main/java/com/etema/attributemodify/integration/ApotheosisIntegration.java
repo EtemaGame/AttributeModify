@@ -36,10 +36,10 @@ public class ApotheosisIntegration {
             if (rarity != null) {
                 AffixHelper.setRarity(stack, rarity);
                 
-                AttributeModify.LOGGER.info("Applied Apotheosis rarity '{}' to {}", rarityId, stack.getItem());
+                AttributeModify.LOGGER.debug("Applied Apotheosis rarity '{}' to {}", rarityId, stack.getItem());
             }
         } catch (Throwable e) {
-            AttributeModify.LOGGER.error("Failed to apply Apotheosis rarity via API: {}", e.getMessage());
+            AttributeModify.LOGGER.error("Failed to apply Apotheosis rarity via API: {}", e.getMessage(), e);
         }
     }
 
@@ -59,7 +59,8 @@ public class ApotheosisIntegration {
                         RarityRegistry.INSTANCE.getKey(rarity), stack.getItem());
             }
         } catch (Throwable e) {
-            // Silently fail if not applicable
+            AttributeModify.LOGGER.debug("Unable to read Apotheosis rarity for {}: {}",
+                    stack.getItem(), e.getMessage(), e);
         }
     }
 }

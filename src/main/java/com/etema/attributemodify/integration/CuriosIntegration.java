@@ -24,12 +24,9 @@ public class CuriosIntegration {
 
                 AttributeModify.LOGGER.debug("Curios detected - event integration enabled successfully");
             } catch (Exception e) {
-                AttributeModify.LOGGER.warn("Failed to initialize Curios integration: {}", e.getMessage());
+                AttributeModify.LOGGER.warn("Failed to initialize Curios integration: {}", e.getMessage(), e);
                 curiosLoaded = false;
             }
-        } else {
-            // AttributeModify.LOGGER.info("Curios not found - standard equipment slots
-            // only");
         }
     }
 

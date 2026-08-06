@@ -209,7 +209,8 @@ public class CustomDurabilityHandler {
             return;
         }
 
-        if (event.player.tickCount % 20 == 0) {
+        if (event.player.tickCount % 20 == 0
+                && ItemAttributeDataManager.getInstance().hasDurabilityRules()) {
             scanPlayerInventory(event.player);
         }
     }

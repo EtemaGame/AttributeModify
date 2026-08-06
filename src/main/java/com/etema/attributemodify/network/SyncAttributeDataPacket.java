@@ -527,8 +527,6 @@ public class SyncAttributeDataPacket {
                     packet.decorativeItems,
                     packet.preserveDecorativeTooltipItems,
                     packet.decorativePolicies);
-            // AttributeModify.LOGGER.info("Client synchronized attribute data from
-            // server");
         });
         context.setPacketHandled(true);
     }

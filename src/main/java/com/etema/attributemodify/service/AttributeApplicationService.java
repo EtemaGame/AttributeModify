@@ -1,6 +1,5 @@
 package com.etema.attributemodify.service;
 
-import com.etema.attributemodify.AttributeModify;
 import com.etema.attributemodify.ItemAttributeDataManager;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
@@ -35,17 +34,9 @@ public class AttributeApplicationService {
 
             switch (entry.action()) {
                 case REMOVE -> {
-                    if (preserveExternalOverrides) {
-                        AttributeModify.LOGGER.debug("[apply] Removing external modifiers while applying REMOVE {} on {} in slot {}",
-                                attribute.getDescriptionId(), event.getItemStack().getItem(), event.getSlotType());
-                    }
                     applyRemoveRule(event, attribute, entry.targetOperation());
                 }
                 case MODIFY -> {
-                    if (preserveExternalOverrides) {
-                        AttributeModify.LOGGER.debug("[apply] Preserving external modifiers while applying MODIFY {} on {} in slot {}",
-                                attribute.getDescriptionId(), event.getItemStack().getItem(), event.getSlotType());
-                    }
                     applyModifyRule(event, attribute, entry.modifier(), preserveExternalOverrides);
                 }
                 case ADD -> applyAddRule(event, attribute, entry.modifier(), preserveExternalOverrides);
@@ -143,22 +134,16 @@ public class AttributeApplicationService {
     private static void applyModifyRule(ItemAttributeModifierEvent event, Attribute attribute, AttributeModifier dataModifier,
             boolean preserveExternalOverrides) {
         if (dataModifier == null) {
-            AttributeModify.LOGGER.debug("[apply] MODIFY {} on {} in slot {} was ignored because the datapack modifier is null",
-                    attribute.getDescriptionId(), event.getItemStack().getItem(), event.getSlotType());
             return;
         }
 
         Collection<AttributeModifier> originalModifiers = event.getOriginalModifiers().get(attribute);
         if (originalModifiers == null || originalModifiers.isEmpty()) {
-            AttributeModify.LOGGER.debug(
-                    "[semantic] MODIFY {} on {} in slot {} found no original item modifier to replace; falling back to ADD",
-                    attribute.getDescriptionId(), event.getItemStack().getItem(), event.getSlotType());
             event.addModifier(attribute, dataModifier);
             return;
         }
 
         originalModifiers = List.copyOf(originalModifiers);
-        boolean anyModified = false;
         Collection<AttributeModifier> vanillaModifiers = event.getItemStack().getItem()
                 .getDefaultAttributeModifiers(event.getSlotType()).get(attribute);
         for (AttributeModifier original : originalModifiers) {
@@ -173,20 +158,12 @@ public class AttributeApplicationService {
                     dataModifier.getAmount(),
                     dataModifier.getOperation()
             ));
-            anyModified = true;
-        }
-
-        if (!anyModified) {
-            AttributeModify.LOGGER.debug("[semantic] MODIFY {} on {} in slot {} found modifiers, but none matched the original item identity",
-                    attribute.getDescriptionId(), event.getItemStack().getItem(), event.getSlotType());
         }
     }
 
     private static void applyAddRule(ItemAttributeModifierEvent event, Attribute attribute, AttributeModifier dataModifier,
             boolean preserveExternalOverrides) {
         if (dataModifier == null) {
-            AttributeModify.LOGGER.debug("[apply] ADD {} on {} in slot {} was ignored because the datapack modifier is null",
-                    attribute.getDescriptionId(), event.getItemStack().getItem(), event.getSlotType());
             return;
         }
 
@@ -225,8 +202,6 @@ public class AttributeApplicationService {
 
     private static void applySetRule(ItemAttributeModifierEvent event, Attribute attribute, AttributeModifier dataModifier) {
         if (dataModifier == null) {
-            AttributeModify.LOGGER.debug("[apply] SET {} on {} in slot {} was ignored because the datapack modifier is null",
-                    attribute.getDescriptionId(), event.getItemStack().getItem(), event.getSlotType());
             return;
         }
 

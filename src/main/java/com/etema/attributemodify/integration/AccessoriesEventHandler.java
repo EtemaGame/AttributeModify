@@ -134,7 +134,7 @@ public class AccessoriesEventHandler {
             return parsed;
         }
 
-        return new ResourceLocation(AttributeModify.MODID, sanitizePath(modifier.getName()));
+        return ResourceLocation.fromNamespaceAndPath(AttributeModify.MODID, sanitizePath(modifier.getName()));
     }
 
     private static AttributeModifier makeAccessoriesInstanceUnique(AttributeModifier base, String slotId, int index) {

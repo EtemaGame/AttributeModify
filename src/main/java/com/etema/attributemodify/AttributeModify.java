@@ -22,8 +22,8 @@ public class AttributeModify {
     public static final String MODID = "attributemodify";
     public static final Logger LOGGER = LogUtils.getLogger();
 
-    public AttributeModify() {
-        IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+    public AttributeModify(FMLJavaModLoadingContext loadingContext) {
+        IEventBus modEventBus = loadingContext.getModEventBus();
 
         MinecraftForge.EVENT_BUS.register(this);
         MinecraftForge.EVENT_BUS.register(new ItemAttributeHandler());
@@ -41,7 +41,6 @@ public class AttributeModify {
 
     private void commonSetup(FMLCommonSetupEvent event) {
         event.enqueueWork(() -> {
-            // ConfigHandler removed - using datapack-only mode
             NetworkHandler.register();
             EditorNetwork.register();
             LOGGER.debug("AttributeModify - Setup completed (datapack-only mode)");
