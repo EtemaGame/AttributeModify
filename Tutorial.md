@@ -2,6 +2,8 @@
 
 This guide explains the mod step by step. It is written to be practical rather than formal.
 
+This document targets AttributeModify `1.2.3` for Forge and Minecraft `1.20.1`.
+
 ## 1. What the mod does
 
 AttributeModify reads JSON files from your datapack and applies changes to items.
@@ -31,6 +33,9 @@ data/mymod/item_attributes/tools.json
 ```
 
 You can split your rules across several files. The game merges them.
+
+After adding or changing files, run `/reload`. AttributeModify replaces its
+reloadable state instead of keeping rules from the previous datapack load.
 
 ## 3. The basic structure
 
@@ -107,6 +112,23 @@ Read it like this:
 - the object inside contains the rule for that item
 - the inner arrays hold the actual attribute entries
 - the same item can use `attribute`, `attributes`, or `equipment_slots` depending on how precise you want to be
+
+### Item tags as targets
+
+Prefix a target with `#` to apply the same rule to every item in a registered item tag:
+
+```json
+{
+  "#forge:tools": {
+    "attribute": "minecraft:generic.attack_damage",
+    "action": "add",
+    "amount": 1.0,
+    "operation": "add_value"
+  }
+}
+```
+
+Tag rules are resolved again after item tags become available during loading.
 
 ## 4. Adding a simple attribute
 
@@ -236,9 +258,40 @@ Supported standard slots:
 - `chest`
 - `legs`
 - `feet`
-- `body`
 
 Curios and Accessories can also be used if those integrations are installed and enabled.
+
+Use their explicit datapack keys when automatic detection is not appropriate:
+
+```json
+{
+  "examplemod:ring": {
+    "curios_slots": {
+      "ring": [
+        {
+          "attribute": "minecraft:generic.max_health",
+          "action": "add",
+          "amount": 4.0,
+          "operation": "add_value"
+        }
+      ]
+    },
+    "accessories_slots": {
+      "ring": [
+        {
+          "attribute": "minecraft:generic.max_health",
+          "action": "add",
+          "amount": 4.0,
+          "operation": "add_value"
+        }
+      ]
+    }
+  }
+}
+```
+
+Only the section for an installed integration is processed. Slot names must exist
+in that integration's configuration.
 
 Automatic Curios detection reads every concrete `curios:<slot>` item tag and applies the shorthand rule to each matching slot. Aggregate tags such as `curios:all` and `curios:curio` are ignored because they do not identify one concrete slot.
 
@@ -429,6 +482,17 @@ Quality rules let you roll values based on weights.
 - `triggers` says when a roll can happen
 - `levels` is the weighted list of possible results
 
+Supported triggers:
+
+- `craft`: when the item is crafted
+- `loot`: when it is picked up or taken from a container
+- `villager_trade`: after a villager trade
+- `apotheosis_sync`: asks the optional Apotheosis integration to synchronize rarity information
+
+An item that already contains the configured quality path is not rolled again.
+When `tag_path` is `affix_data.rarity` and Apotheosis is installed, the rolled
+value is applied through the Apotheosis rarity API.
+
 ## 11. Decorative items
 
 If you only want an item to behave like a purely decorative item, mark it like this:
@@ -447,6 +511,7 @@ Decorative items are treated as ornamental only:
 - the tooltip is reduced to the item name and the minimum extra lines the client still adds
 - attacks, mining, item use, and entity or block interactions are blocked
 - active status effects are cleared while the item is equipped in a hand or armor slot
+- they are still recognized by the sync system, so client and server stay in agreement
 
 Existing datapacks keep the strict tooltip behavior. To hide only attribute sections
 while preserving lore, enchantments, durability, quality, and information from other
@@ -483,9 +548,57 @@ defaults to `true`, so existing datapacks keep their current behavior:
 `block_all_effects` rejects newly applied effects. `clear_existing_effects`
 removes active effects while the item is equipped. Disable both when unrelated
 potion or beacon effects must remain active.
-- they are still recognized by the sync system, so client and server stay in agreement
 
-## 12. A few things to keep in mind
+## 12. Editor and diagnostic commands
+
+Open the in-game editor with:
+
+```text
+/attributemodify_editor
+```
+
+The editor builds its large item and attribute lists locally while the server
+provides authoritative tags, registered mining tiers, namespaces, and integration
+availability. Saving is allowed for the singleplayer owner or players with
+permission level 2. The editor writes its managed datapack and then asks you to
+run `/reload`.
+
+Inspect the item in either hand with:
+
+```text
+/attributemodify_inspect
+/attributemodify_inspect mainhand
+/attributemodify_inspect offhand
+```
+
+The report separates:
+
+- `DEFAULT`: modifiers supplied by the item
+- `EXTERNAL`: modifiers visible without AttributeModify processing
+- `RULES`: matching datapack rules
+- `EFFECTIVE`: the final modifiers after every rule and integration
+
+The complete diagnostic report is also written to `latest.log`.
+
+## 13. Compatibility
+
+Required runtime:
+
+- Minecraft `1.20.1`
+- Forge `47.4.0` or a compatible Forge 47 version
+- Java `17`
+
+Optional integrations:
+
+- Curios `5.14.1+`
+- Accessories `1.0.0-beta.47+`
+- Apotheosis `7.4.8` with Placebo when quality rarity integration is needed
+
+Optional integrations disable themselves when their mod is absent or cannot be
+initialized. Do not copy NeoForge 1.21.1 data components, payload codecs, mixins,
+or tier APIs into this Forge 1.20.1 branch.
+
+## 14. A few things to keep in mind
 
 - If a field is invalid, the game usually warns about it during validation or load.
 - Keep item ids valid. A typo in the item id means the rule will not apply.
@@ -494,7 +607,7 @@ potion or beacon effects must remain active.
 - If a Curios or Accessories slot does not exist, that slot will not pass validation.
 - Use one example at a time when testing. It is easier to debug that way.
 
-## 13. Suggested way to test
+## 15. Suggested way to test
 
 1. Start with one item.
 2. Add one rule only.
@@ -504,7 +617,11 @@ potion or beacon effects must remain active.
 
 This saves time because it is much easier to find the broken part.
 
-## 14. Good starting examples
+A ready-to-use manual regression datapack is available under
+`test-packs/forge-regression`. It covers attributes, durability, mining, quality,
+decorative behavior, a second `/reload`, and dedicated-server reconnection.
+
+## 16. Good starting examples
 
 ### Simple weapon boost
 
@@ -551,7 +668,7 @@ This saves time because it is much easier to find the broken part.
 }
 ```
 
-## 15. Support
+## 17. Support
 
 If you want the version-specific details, examples, or edge cases, keep them in Discord. This guide is the step-by-step base.
 
