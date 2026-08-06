@@ -74,8 +74,8 @@ The inspector reports default modifiers, modifiers injected by other events or m
 
 ## Documentation
 
-- [Complete tutorial](Tutorial.md)
-- [Manual Forge regression datapack](test-packs/forge-regression/README.md)
+The complete step-by-step tutorial and version-specific regression examples are
+published separately with the project description and in the support community.
 
 ## Build
 

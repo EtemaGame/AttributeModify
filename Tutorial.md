@@ -617,9 +617,9 @@ or tier APIs into this Forge 1.20.1 branch.
 
 This saves time because it is much easier to find the broken part.
 
-A ready-to-use manual regression datapack is available under
-`test-packs/forge-regression`. It covers attributes, durability, mining, quality,
-decorative behavior, a second `/reload`, and dedicated-server reconnection.
+For release validation, use a dedicated regression datapack that covers attributes,
+durability, mining, quality, decorative behavior, a second `/reload`, and
+dedicated-server reconnection.
 
 ## 16. Good starting examples
 
