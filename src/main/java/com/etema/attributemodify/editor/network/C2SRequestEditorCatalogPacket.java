@@ -9,12 +9,17 @@ import net.minecraftforge.network.PacketDistributor;
 
 import java.util.function.Supplier;
 
-public final class C2SRequestEditorCatalogPacket {
+public record C2SRequestEditorCatalogPacket(boolean supportsMetadataCatalog) {
+    public C2SRequestEditorCatalogPacket() {
+        this(true);
+    }
+
     public static void encode(C2SRequestEditorCatalogPacket packet, FriendlyByteBuf buf) {
+        buf.writeBoolean(packet.supportsMetadataCatalog());
     }
 
     public static C2SRequestEditorCatalogPacket decode(FriendlyByteBuf buf) {
-        return new C2SRequestEditorCatalogPacket();
+        return new C2SRequestEditorCatalogPacket(buf.isReadable() && buf.readBoolean());
     }
 
     public static void handle(C2SRequestEditorCatalogPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
@@ -24,7 +29,12 @@ public final class C2SRequestEditorCatalogPacket {
             if (player == null) {
                 return;
             }
-            String payload = EditorJsonPayloads.catalogToJson(EditorCatalogService.buildCatalog()).toString();
+            String payload = packet.supportsMetadataCatalog()
+                    ? EditorJsonPayloads.metadataCatalogToJson(EditorCatalogService.buildMetadataCatalog()).toString()
+                    : EditorJsonPayloads.catalogToJson(EditorCatalogService.buildCatalog()).toString();
+            if (!S2CEditorCatalogPacket.isPayloadWithinLimit(payload)) {
+                payload = EditorJsonPayloads.catalogError("Catalog metadata exceeds the network safety limit").toString();
+            }
             EditorNetwork.INSTANCE.send(PacketDistributor.PLAYER.with(() -> player), new S2CEditorCatalogPacket(payload));
         });
         context.setPacketHandled(true);

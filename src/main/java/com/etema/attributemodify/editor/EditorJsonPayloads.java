@@ -16,7 +16,17 @@ public final class EditorJsonPayloads {
     }
 
     public static JsonObject catalogToJson(EditorCatalog catalog) {
+        return catalogToJson(catalog, 1, false);
+    }
+
+    public static JsonObject metadataCatalogToJson(EditorCatalog catalog) {
+        return catalogToJson(catalog, EditorCatalogService.HYBRID_SCHEMA_VERSION, true);
+    }
+
+    private static JsonObject catalogToJson(EditorCatalog catalog, int schemaVersion, boolean localEntries) {
         JsonObject root = new JsonObject();
+        root.addProperty("schemaVersion", schemaVersion);
+        root.addProperty("localEntries", localEntries);
         JsonArray items = new JsonArray();
         for (EditorItemInfo item : catalog.items()) {
             JsonObject object = new JsonObject();
@@ -53,6 +63,14 @@ public final class EditorJsonPayloads {
 
         root.addProperty("curiosLoaded", catalog.curiosLoaded());
         root.addProperty("accessoriesLoaded", catalog.accessoriesLoaded());
+        return root;
+    }
+
+    public static JsonObject catalogError(String message) {
+        JsonObject root = new JsonObject();
+        root.addProperty("schemaVersion", EditorCatalogService.HYBRID_SCHEMA_VERSION);
+        root.addProperty("success", false);
+        root.addProperty("error", message == null ? "Catalog unavailable" : message);
         return root;
     }
 

@@ -1610,10 +1610,11 @@ public final class AttributeModifyEditorScreen extends Screen {
         String catJson = EditorClientState.latestCatalogJson();
         if (!catJson.equals(lastCatalogJson)) {
             lastCatalogJson = catJson;
-            parseCatalog(catJson);
-            refreshItemFilter();
-            status = "Catalog loaded: " + allItems.size() + " items";
-            statusError = false; statusOk = true;
+            if (parseCatalog(catJson)) {
+                refreshItemFilter();
+                status = "Catalog loaded: " + allItems.size() + " items";
+                statusError = false; statusOk = true;
+            }
         }
 
         String ruleJson = EditorClientState.latestRuleJson();
@@ -1629,29 +1630,19 @@ public final class AttributeModifyEditorScreen extends Screen {
         }
     }
 
-    private void parseCatalog(String json) {
+    private boolean parseCatalog(String json) {
         allItems.clear(); attributes.clear(); miningTiers.clear();
         try {
             JsonObject root = JsonParser.parseString(json).getAsJsonObject();
-            JsonArray items = root.getAsJsonArray("items");
-            if (items != null) for (var el : items) {
-                JsonObject o = el.getAsJsonObject();
-                ResourceLocation id = ResourceLocation.tryParse(o.get("id").getAsString());
-                if (id == null) continue;
-                String desc = o.get("descriptionId").getAsString();
-                allItems.add(new CatalogItem(id, desc, Component.translatable(desc).getString(),
-                             o.get("maxDamage").getAsInt(), o.get("damageable").getAsBoolean()));
+            if (root.has("success") && !root.get("success").getAsBoolean()) {
+                throw new IllegalStateException(root.has("error")
+                        ? root.get("error").getAsString() : "Catalog unavailable");
             }
-            JsonArray attrs = root.getAsJsonArray("attributes");
-            if (attrs != null) for (var el : attrs) {
-                JsonObject o = el.getAsJsonObject();
-                ResourceLocation id = ResourceLocation.tryParse(o.get("id").getAsString());
-                if (id == null) continue;
-                String desc = o.has("descriptionId") ? o.get("descriptionId").getAsString() : id.toString();
-                String translated = Component.translatable(desc).getString();
-                String ns = id.getNamespace();
-                attributes.add(new AttributeOption(id, desc, translated, ns,
-                        (id + " " + ns + " " + translated + " " + desc).toLowerCase(Locale.ROOT)));
+
+            if (root.has("localEntries") && root.get("localEntries").getAsBoolean()) {
+                buildLocalCatalogEntries();
+            } else {
+                parseLegacyCatalogEntries(root);
             }
             attributes.sort(Comparator.comparing(AttributeOption::namespace)
                     .thenComparing(AttributeOption::translatedName)
@@ -1666,9 +1657,61 @@ public final class AttributeModifyEditorScreen extends Screen {
             }
             miningTiers.sort(String::compareToIgnoreCase);
             attrFilterDirty = true;
+            return true;
         } catch (RuntimeException e) {
             status = "Catalog parse failed: " + e.getMessage(); statusError = true; statusOk = false;
+            return false;
         }
+    }
+
+    private void buildLocalCatalogEntries() {
+        for (ResourceLocation id : ForgeRegistries.ITEMS.getKeys()) {
+            Item item = ForgeRegistries.ITEMS.getValue(id);
+            if (item == null) {
+                continue;
+            }
+            ItemStack stack = item.getDefaultInstance();
+            int maxDamage = Math.max(0, item.getMaxDamage(stack));
+            String descriptionId = item.getDescriptionId();
+            allItems.add(new CatalogItem(id, descriptionId, Component.translatable(descriptionId).getString(),
+                    maxDamage, stack.isDamageableItem() || maxDamage > 0));
+        }
+
+        for (ResourceLocation id : ForgeRegistries.ATTRIBUTES.getKeys()) {
+            var attribute = ForgeRegistries.ATTRIBUTES.getValue(id);
+            if (attribute == null) {
+                continue;
+            }
+            addAttributeOption(id, attribute.getDescriptionId());
+        }
+    }
+
+    private void parseLegacyCatalogEntries(JsonObject root) {
+        JsonArray items = root.getAsJsonArray("items");
+        if (items != null) for (var el : items) {
+            JsonObject object = el.getAsJsonObject();
+            ResourceLocation id = ResourceLocation.tryParse(object.get("id").getAsString());
+            if (id == null) continue;
+            String descriptionId = object.get("descriptionId").getAsString();
+            allItems.add(new CatalogItem(id, descriptionId, Component.translatable(descriptionId).getString(),
+                    object.get("maxDamage").getAsInt(), object.get("damageable").getAsBoolean()));
+        }
+
+        JsonArray attrs = root.getAsJsonArray("attributes");
+        if (attrs != null) for (var el : attrs) {
+            JsonObject object = el.getAsJsonObject();
+            ResourceLocation id = ResourceLocation.tryParse(object.get("id").getAsString());
+            if (id == null) continue;
+            addAttributeOption(id, object.has("descriptionId")
+                    ? object.get("descriptionId").getAsString() : id.toString());
+        }
+    }
+
+    private void addAttributeOption(ResourceLocation id, String descriptionId) {
+        String translated = Component.translatable(descriptionId).getString();
+        String namespace = id.getNamespace();
+        attributes.add(new AttributeOption(id, descriptionId, translated, namespace,
+                (id + " " + namespace + " " + translated + " " + descriptionId).toLowerCase(Locale.ROOT)));
     }
 
     private void refreshItemFilter() {

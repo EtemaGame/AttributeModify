@@ -17,6 +17,8 @@ import java.util.List;
 import java.util.Set;
 
 public final class EditorCatalogService {
+    public static final int HYBRID_SCHEMA_VERSION = 2;
+
     private EditorCatalogService() {
     }
 
@@ -55,6 +57,36 @@ public final class EditorCatalogService {
         }
 
         return new EditorCatalog(items, attributes, Set.copyOf(equipmentSlots), Set.of(), Set.of(),
+                Set.copyOf(namespaces), Set.copyOf(tags), Set.copyOf(miningTiers), CuriosIntegration.isCuriosLoaded(),
+                AccessoriesIntegration.isAccessoriesLoaded());
+    }
+
+    public static EditorCatalog buildMetadataCatalog() {
+        Set<String> equipmentSlots = new LinkedHashSet<>();
+        for (EquipmentSlot slot : EquipmentSlot.values()) {
+            equipmentSlots.add(slot.getName());
+        }
+
+        Set<String> namespaces = new LinkedHashSet<>();
+        ForgeRegistries.ITEMS.getKeys().stream()
+                .map(ResourceLocation::getNamespace)
+                .sorted()
+                .forEach(namespaces::add);
+
+        Set<ResourceLocation> tags = new LinkedHashSet<>();
+        if (ForgeRegistries.ITEMS.tags() != null) {
+            ForgeRegistries.ITEMS.tags().getTagNames().map(TagKey::location).sorted().forEach(tags::add);
+        }
+
+        Set<ResourceLocation> miningTiers = new LinkedHashSet<>();
+        for (var tier : TierSortingRegistry.getSortedTiers()) {
+            ResourceLocation id = TierSortingRegistry.getName(tier);
+            if (id != null) {
+                miningTiers.add(id);
+            }
+        }
+
+        return new EditorCatalog(List.of(), List.of(), Set.copyOf(equipmentSlots), Set.of(), Set.of(),
                 Set.copyOf(namespaces), Set.copyOf(tags), Set.copyOf(miningTiers), CuriosIntegration.isCuriosLoaded(),
                 AccessoriesIntegration.isAccessoriesLoaded());
     }

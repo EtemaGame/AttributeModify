@@ -9,8 +9,13 @@ import java.util.function.Supplier;
 public record S2CEditorCatalogPacket(String payload) {
     private static final int MAX_PAYLOAD_SIZE = 1_048_576;
 
+    public static boolean isPayloadWithinLimit(String payload) {
+        return payload != null && payload.length() <= MAX_PAYLOAD_SIZE;
+    }
+
     public static void encode(S2CEditorCatalogPacket packet, FriendlyByteBuf buf) {
-        buf.writeUtf(packet.payload(), MAX_PAYLOAD_SIZE);
+        String payload = isPayloadWithinLimit(packet.payload()) ? packet.payload() : "{}";
+        buf.writeUtf(payload, MAX_PAYLOAD_SIZE);
     }
 
     public static S2CEditorCatalogPacket decode(FriendlyByteBuf buf) {
