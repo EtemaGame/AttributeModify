@@ -52,9 +52,9 @@ public class AccessoriesEventHandler {
                 }
 
                 switch (entry.action()) {
-                    case REMOVE -> removeAttribute(builder, attribute);
+                    case REMOVE -> removeAttribute(builder, attribute, entry.targetOperation());
                     case MODIFY -> {
-                        removeAttribute(builder, attribute);
+                        removeAttribute(builder, attribute, null);
                         AttributeModifier modifier = entry.modifier();
                         if (modifier != null) {
                             addExclusive(builder, attribute, modifier, slotIdentifier, slotIndex);
@@ -82,7 +82,7 @@ public class AccessoriesEventHandler {
                     continue;
                 }
 
-                removeAttribute(builder, attribute);
+                removeAttribute(builder, attribute, null);
                 AttributeModifier modifier = entry.modifier();
                 if (modifier != null) {
                     AttributeModifier exact = new AttributeModifier(
@@ -98,17 +98,25 @@ public class AccessoriesEventHandler {
         }
     }
 
-    private static void removeAttribute(AccessoryAttributeBuilder builder, Attribute attribute) {
+    private static void removeAttribute(AccessoryAttributeBuilder builder, Attribute attribute,
+            AttributeModifier.Operation targetOperation) {
         List<ResourceLocation> exclusiveIds = builder.exclusiveAttributes()
                 .getOrDefault(attribute, java.util.Map.of())
-                .keySet()
+                .entrySet()
                 .stream()
+                .filter(entry -> ItemAttributeDataManager.removalOperationMatches(targetOperation,
+                        entry.getValue().modifier().getOperation()))
+                .map(java.util.Map.Entry::getKey)
                 .toList();
         for (ResourceLocation id : exclusiveIds) {
             builder.removeExclusive(attribute, id);
         }
 
         for (AttributeModificationData data : List.copyOf(builder.stackedAttributes().get(attribute))) {
+            if (!ItemAttributeDataManager.removalOperationMatches(targetOperation,
+                    data.modifier().getOperation())) {
+                continue;
+            }
             ResourceLocation id = modifierLocation(data.modifier());
             builder.removeStacks(attribute, id);
         }

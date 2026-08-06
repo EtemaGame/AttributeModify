@@ -16,8 +16,10 @@ import net.minecraftforge.event.entity.player.ItemTooltipEvent;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Presentation layer for attribute tooltips.
@@ -41,14 +43,111 @@ public class TooltipPresentationService {
         ItemStack itemStack = event.getItemStack();
         List<Component> tooltip = event.getToolTip();
 
+        if (ItemAttributeDataManager.getInstance().isDecorative(itemStack.getItem())) {
+            trimDecorativeTooltip(tooltip);
+            return;
+        }
+
         Map<EquipmentSlot, List<AttributeInfo>> rulesBySlot = collectTooltipRules(itemStack);
         if (rulesBySlot.isEmpty()) {
+            mergeDuplicateAttributeSections(tooltip);
             return;
         }
 
         rewriteExactAttributes(tooltip, rulesBySlot);
         removeHiddenAttributes(tooltip, rulesBySlot);
         addMissingNewAttributes(itemStack, tooltip, rulesBySlot);
+        mergeDuplicateAttributeSections(tooltip);
+    }
+
+    private static void trimDecorativeTooltip(List<Component> tooltip) {
+        if (tooltip.isEmpty()) {
+            return;
+        }
+
+        Component title = tooltip.get(0);
+        tooltip.clear();
+        tooltip.add(title);
+    }
+
+    /**
+     * Curios and an item provider can both render a complete attribute section for
+     * the same logical slot. Keep the first header and move any later attribute
+     * lines into that section so metadata and unrelated tooltip text stay below it.
+     */
+    static void mergeDuplicateAttributeSections(List<Component> tooltip) {
+        Map<String, Integer> firstHeaders = new HashMap<>();
+
+        for (int i = 0; i < tooltip.size(); i++) {
+            String slot = detectLogicalSlotHeader(tooltip.get(i));
+            if (slot == null) {
+                continue;
+            }
+
+            Integer firstHeader = firstHeaders.putIfAbsent(slot, i);
+            if (firstHeader == null) {
+                continue;
+            }
+
+            int sectionEnd = i + 1;
+            List<Component> attributeLines = new ArrayList<>();
+            while (sectionEnd < tooltip.size()
+                    && extractTooltipLineInfo(tooltip.get(sectionEnd)) != null) {
+                attributeLines.add(tooltip.get(sectionEnd));
+                sectionEnd++;
+            }
+
+            int removalStart = i > 0 && tooltip.get(i - 1).getString().isBlank() ? i - 1 : i;
+            tooltip.subList(removalStart, sectionEnd).clear();
+
+            int insertionIndex = firstHeader + 1;
+            Set<String> existingLines = new HashSet<>();
+            while (insertionIndex < tooltip.size()
+                    && extractTooltipLineInfo(tooltip.get(insertionIndex)) != null) {
+                existingLines.add(attributeLineIdentity(tooltip.get(insertionIndex)));
+                insertionIndex++;
+            }
+
+            for (Component attributeLine : attributeLines) {
+                if (existingLines.add(attributeLineIdentity(attributeLine))) {
+                    tooltip.add(insertionIndex++, attributeLine);
+                }
+            }
+
+            i = Math.max(firstHeader, insertionIndex - 1);
+        }
+    }
+
+    private static String attributeLineIdentity(Component line) {
+        TooltipLineInfo info = extractTooltipLineInfo(line);
+        return info == null ? line.getString()
+                : info.attributeTranslationKey() + "|" + info.operation() + "|" + line.getString();
+    }
+
+    private static String detectLogicalSlotHeader(Component component) {
+        if (component.getContents() instanceof TranslatableContents translatable) {
+            String key = translatable.getKey();
+            if (key.startsWith("curios.modifiers.")) {
+                String slot = key.substring("curios.modifiers.".length());
+                if (!slot.isBlank() && !slot.contains(".")) {
+                    return slot;
+                }
+            }
+            if (key.startsWith("item.modifiers.")) {
+                String slot = key.substring("item.modifiers.".length());
+                if (!slot.isBlank()) {
+                    return slot;
+                }
+            }
+        }
+
+        for (Component sibling : component.getSiblings()) {
+            String slot = detectLogicalSlotHeader(sibling);
+            if (slot != null) {
+                return slot;
+            }
+        }
+        return null;
     }
 
     private static Map<EquipmentSlot, List<AttributeInfo>> collectTooltipRules(ItemStack itemStack) {

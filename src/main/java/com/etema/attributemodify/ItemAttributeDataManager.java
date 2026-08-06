@@ -14,6 +14,7 @@ import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
 import net.minecraft.tags.TagKey;
 import net.minecraft.util.profiling.ProfilerFiller;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.item.Item;
@@ -588,6 +589,13 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
         Map<String, List<AttributeEntry>> curiosData = new HashMap<>();
         String itemKey = ForgeRegistries.ITEMS.getKey(item).toString();
 
+        if (itemData.has("decorative") && itemData.get("decorative").isJsonPrimitive()
+                && itemData.get("decorative").getAsJsonPrimitive().isBoolean()
+                && itemData.get("decorative").getAsBoolean()) {
+            decorativeItems.add(item);
+            LOGGER.debug("Marked item '{}' as decorative", itemKey);
+        }
+
         // 1. Specific standard slots
         if (itemData.has("equipment_slots") && itemData.get("equipment_slots").isJsonObject()) {
             JsonObject slotsData = itemData.getAsJsonObject("equipment_slots");
@@ -620,7 +628,7 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
         }
 
         // 4. Shorthand top-level single attribute (Auto-detect slot)
-        if (itemData.has("attribute") && itemData.has("amount")) {
+        if (itemData.has("attribute") && itemData.get("attribute").isJsonPrimitive()) {
             JsonArray singleAttrArray = new JsonArray();
             singleAttrArray.add(itemData); // Use the itemData itself as the attribute object
             processAutoSlotAttributes(item, singleAttrArray, standardData, curiosData);
@@ -682,11 +690,13 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
             return;
         }
 
-        String autoCurio = autoDetectCuriosSlot(item);
-        if (autoCurio != null) {
-            List<AttributeEntry> attributes = parseAttributeEntries(item, attributesArray, itemKey, autoCurio);
-            curiosData.computeIfAbsent(autoCurio, k -> new ArrayList<>()).addAll(attributes);
+        List<String> autoCurios = autoDetectCuriosSlots(item);
+        if (!autoCurios.isEmpty()) {
+            for (String autoCurio : autoCurios) {
+                List<AttributeEntry> attributes = parseAttributeEntries(item, attributesArray, itemKey, autoCurio);
+                curiosData.computeIfAbsent(autoCurio, k -> new ArrayList<>()).addAll(attributes);
                 LOGGER.debug("Auto-detected Curios slot '{}' for item {}", autoCurio, itemKey);
+            }
             return;
         }
 
@@ -716,46 +726,37 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
         return null;
     }
 
-    private String autoDetectCuriosSlot(Item item) {
+    private List<String> autoDetectCuriosSlots(Item item) {
         if (!CuriosIntegration.shouldProcessCuriosSlots()) {
-            return null;
+            return List.of();
         }
 
-        if (hasCuriosTag(item, "ring")) {
-            return "ring";
-        }
-        if (hasCuriosTag(item, "necklace")) {
-            return "necklace";
-        }
-        if (hasCuriosTag(item, "belt")) {
-            return "belt";
-        }
-        if (hasCuriosTag(item, "charm")) {
-            return "charm";
-        }
-
-        return null;
+        Set<ResourceLocation> matchingTags = new HashSet<>();
+        ForgeRegistries.ITEMS.tags().getTagNames()
+                .filter(tag -> "curios".equals(tag.location().getNamespace()))
+                .filter(tag -> ForgeRegistries.ITEMS.tags().getTag(tag).contains(item))
+                .map(TagKey::location)
+                .forEach(matchingTags::add);
+        return selectCuriosSlotIds(matchingTags);
     }
 
-    private boolean hasCuriosTag(Item item, String slotName) {
-        ResourceLocation tagLocation = ResourceLocation.tryParse("curios:" + slotName);
-        if (tagLocation == null) {
-            return false;
-        }
+    /**
+     * Converts Curios item tags into logical slot identifiers. Generic aggregate
+     * tags are not equipable slots and must not receive rules.
+     */
+    static List<String> selectCuriosSlotIds(Iterable<ResourceLocation> tagLocations) {
+        Set<String> slots = new HashSet<>();
+        for (ResourceLocation location : tagLocations) {
+            if (location == null || !"curios".equals(location.getNamespace())) {
+                continue;
+            }
 
-        TagKey<Item> tagKey = TagKey.create(ForgeRegistries.ITEMS.getRegistryKey(), tagLocation);
-        ITag<Item> tag = ForgeRegistries.ITEMS.tags().getTag(tagKey);
-        if (tag.isEmpty()) {
-            return false;
-        }
-
-        for (Item taggedItem : tag) {
-            if (taggedItem == item) {
-                return true;
+            String slot = location.getPath();
+            if (!slot.isBlank() && !"all".equals(slot) && !"curio".equals(slot)) {
+                slots.add(slot);
             }
         }
-
-        return false;
+        return slots.stream().sorted().toList();
     }
 
     private List<AttributeEntry> parseAttributeEntries(Item item, JsonArray attributesArray, String itemKey, String slotKey) {
@@ -930,12 +931,16 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
             return java.util.Collections.emptyList();
         }
 
-        List<AttributeEntry> entries = itemData.get(curiosSlot);
-        return entries != null ? entries : java.util.Collections.emptyList();
+        return selectEntriesForUniversalSlot(itemData, curiosSlot, "curio");
     }
 
     public List<AttributeEntry> getEntriesForAccessoriesSlot(Item item, String accessoriesSlot) {
-        return getEntriesForCuriosSlot(item, accessoriesSlot);
+        Map<String, List<AttributeEntry>> itemData = curiosAttributes.get(item);
+        if (itemData == null) {
+            return java.util.Collections.emptyList();
+        }
+
+        return selectEntriesForUniversalSlot(itemData, accessoriesSlot, "accessory");
     }
 
     public boolean hasCustomAttributes(Item item) {
@@ -944,6 +949,91 @@ public class ItemAttributeDataManager extends SimpleJsonResourceReloadListener {
 
     public boolean isDecorative(Item item) {
         return decorativeItems.contains(item);
+    }
+
+    public boolean shouldSuppressAttributeModifier(ItemStack stack, EquipmentSlot slot, Attribute attribute,
+            AttributeModifier.Operation operation) {
+        if (stack == null || stack.isEmpty() || slot == null || attribute == null || operation == null) {
+            return false;
+        }
+
+        if (isDecorative(stack.getItem())) {
+            return true;
+        }
+
+        for (AttributeEntry entry : getEntriesForSlot(stack.getItem(), slot)) {
+            if (entry.action() == AttributeAction.REMOVE
+                    && attribute.equals(entry.attribute())
+                    && entry.matches(stack)
+                    && removalOperationMatches(entry.targetOperation(), operation)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static boolean removalOperationMatches(AttributeModifier.Operation targetOperation,
+            AttributeModifier.Operation modifierOperation) {
+        return targetOperation == null || targetOperation == modifierOperation;
+    }
+
+    static <T> List<T> selectEntriesForUniversalSlot(Map<String, List<T>> itemData, String slotName,
+            String universalSlotName) {
+        if (itemData == null || itemData.isEmpty()) {
+            return List.of();
+        }
+
+        String normalizedSlot = normalizeSlotName(slotName);
+        if (normalizedSlot == null) {
+            return List.of();
+        }
+
+        List<T> entries = new ArrayList<>();
+        itemData.entrySet().stream()
+                .filter(entry -> normalizedSlot.equals(normalizeSlotName(entry.getKey())))
+                .map(Map.Entry::getValue)
+                .filter(java.util.Objects::nonNull)
+                .forEach(entries::addAll);
+
+        if (normalizedSlot.equals(normalizeSlotName(universalSlotName))) {
+            itemData.entrySet().stream()
+                    .filter(entry -> !normalizedSlot.equals(normalizeSlotName(entry.getKey())))
+                    .sorted(java.util.Comparator.comparing(entry -> normalizeSlotName(entry.getKey()),
+                            java.util.Comparator.nullsLast(String::compareTo)))
+                    .map(Map.Entry::getValue)
+                    .filter(java.util.Objects::nonNull)
+                    .forEach(entries::addAll);
+        }
+
+        return entries.isEmpty() ? List.of() : List.copyOf(entries);
+    }
+
+    private static String normalizeSlotName(String slotName) {
+        if (slotName == null || slotName.isBlank()) {
+            return null;
+        }
+        return slotName.trim().toLowerCase(java.util.Locale.ROOT);
+    }
+
+    public boolean hasDecorativeEquipped(LivingEntity entity) {
+        if (entity == null) {
+            return false;
+        }
+
+        for (ItemStack stack : entity.getArmorSlots()) {
+            if (stack != null && !stack.isEmpty() && isDecorative(stack.getItem())) {
+                return true;
+            }
+        }
+
+        ItemStack mainHand = entity.getMainHandItem();
+        if (mainHand != null && !mainHand.isEmpty() && isDecorative(mainHand.getItem())) {
+            return true;
+        }
+
+        ItemStack offHand = entity.getOffhandItem();
+        return offHand != null && !offHand.isEmpty() && isDecorative(offHand.getItem());
     }
     public Map<Item, Map<EquipmentSlot, List<AttributeEntry>>> getStandardAttributesForSync() {
         Map<Item, Map<EquipmentSlot, List<AttributeEntry>>> copy = new HashMap<>();

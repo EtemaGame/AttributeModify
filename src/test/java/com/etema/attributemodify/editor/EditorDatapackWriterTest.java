@@ -13,7 +13,10 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Stream;
 
+import com.google.gson.JsonParser;
+
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class EditorDatapackWriterTest {
@@ -28,6 +31,9 @@ class EditorDatapackWriterTest {
                 .resolve("item_attributes")
                 .resolve("editor_rules.json");
         Path backupDir = rulesPath.getParent();
+        Path packMetaPath = tempDir.resolve("AttributeModify_Editor").resolve("pack.mcmeta");
+        Files.createDirectories(packMetaPath.getParent());
+        Files.writeString(packMetaPath, "{\"pack\":{\"pack_format\":48,\"description\":\"stale\"}}");
 
         EditableItemRule rule = new EditableItemRule(EditorRuleValidatorTest.id("minecraft:diamond_sword"), false);
         rule.getAttributes().add(new EditableAttributeModifier(
@@ -45,7 +51,10 @@ class EditorDatapackWriterTest {
         assertTrue(first.success(), first.error());
         assertTrue(second.success(), second.error());
         assertTrue(Files.exists(rulesPath));
-        assertTrue(Files.exists(tempDir.resolve("AttributeModify_Editor").resolve("pack.mcmeta")));
+        assertTrue(Files.exists(packMetaPath));
+        String packMeta = Files.readString(packMetaPath);
+        assertEquals(15, JsonParser.parseString(packMeta).getAsJsonObject()
+                .getAsJsonObject("pack").get("pack_format").getAsInt());
         assertNull(second.backupPath());
 
         try (Stream<Path> files = Files.list(backupDir)) {

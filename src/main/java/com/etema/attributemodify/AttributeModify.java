@@ -1,6 +1,7 @@
 package com.etema.attributemodify;
 
 import com.etema.attributemodify.handler.*;
+import com.etema.attributemodify.compat.DecorativeCompatRegistry;
 import com.etema.attributemodify.integration.AccessoriesIntegration;
 import com.etema.attributemodify.integration.CuriosIntegration;
 import com.etema.attributemodify.editor.network.EditorNetwork;
@@ -34,6 +35,7 @@ public class AttributeModify {
 
         CuriosIntegration.initialize();
         AccessoriesIntegration.initialize();
+        LOGGER.debug("AttributeModify decorative compat families: {}", DecorativeCompatRegistry.all().keySet());
         LOGGER.debug("AttributeModify Initialized (Forge 1.20.1)");
     }
 

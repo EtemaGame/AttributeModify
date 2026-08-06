@@ -5,6 +5,7 @@ import com.etema.attributemodify.service.TooltipPresentationService;
 
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.event.entity.player.ItemTooltipEvent;
+import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 /**
@@ -13,7 +14,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
  */
 public class AttributeTooltipHandler {
 
-    @SubscribeEvent
+    @SubscribeEvent(priority = EventPriority.LOWEST)
     public void onItemTooltip(ItemTooltipEvent event) {
         ItemStack itemStack = event.getItemStack();
         if (itemStack.isEmpty()) {

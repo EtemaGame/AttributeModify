@@ -58,6 +58,11 @@ public class CustomDurabilityHandler {
         }
 
         ItemStack stack = player.getMainHandItem();
+        if (isDecorative(stack)) {
+            event.setCanceled(true);
+            return;
+        }
+
         if (!prepareStackForUse(stack)) {
             return;
         }
@@ -78,6 +83,11 @@ public class CustomDurabilityHandler {
         }
 
         ItemStack stack = player.getMainHandItem();
+        if (isDecorative(stack)) {
+            event.setCanceled(true);
+            return;
+        }
+
         if (!prepareStackForUse(stack)) {
             return;
         }
@@ -97,6 +107,12 @@ public class CustomDurabilityHandler {
             return;
         }
 
+        if (isDecorative(event.getItemStack())) {
+            event.setCancellationResult(InteractionResult.FAIL);
+            event.setCanceled(true);
+            return;
+        }
+
         if (!allowInteraction(player, event.getItemStack())) {
             event.setCancellationResult(InteractionResult.FAIL);
             event.setCanceled(true);
@@ -108,6 +124,12 @@ public class CustomDurabilityHandler {
 
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
+        if (isDecorative(event.getItemStack())) {
+            event.setCancellationResult(InteractionResult.FAIL);
+            event.setCanceled(true);
+            return;
+        }
+
         if (!allowInteraction(event.getEntity(), event.getItemStack())) {
             event.setCancellationResult(InteractionResult.FAIL);
             event.setCanceled(true);
@@ -119,6 +141,12 @@ public class CustomDurabilityHandler {
 
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
+        if (isDecorative(event.getItemStack())) {
+            event.setCancellationResult(InteractionResult.FAIL);
+            event.setCanceled(true);
+            return;
+        }
+
         if (!allowInteraction(event.getEntity(), event.getItemStack())) {
             event.setCancellationResult(InteractionResult.FAIL);
             event.setCanceled(true);
@@ -130,6 +158,12 @@ public class CustomDurabilityHandler {
 
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void onEntityInteractSpecific(PlayerInteractEvent.EntityInteractSpecific event) {
+        if (isDecorative(event.getItemStack())) {
+            event.setCancellationResult(InteractionResult.FAIL);
+            event.setCanceled(true);
+            return;
+        }
+
         if (!allowInteraction(event.getEntity(), event.getItemStack())) {
             event.setCancellationResult(InteractionResult.FAIL);
             event.setCanceled(true);
@@ -141,6 +175,11 @@ public class CustomDurabilityHandler {
 
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void onLeftClickBlock(PlayerInteractEvent.LeftClickBlock event) {
+        if (isDecorative(event.getItemStack())) {
+            event.setCanceled(true);
+            return;
+        }
+
         if (!allowInteraction(event.getEntity(), event.getItemStack())) {
             event.setCanceled(true);
         }
@@ -148,6 +187,11 @@ public class CustomDurabilityHandler {
 
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void onUseItemStart(LivingEntityUseItemEvent.Start event) {
+        if (isDecorative(event.getItem())) {
+            event.setCanceled(true);
+            return;
+        }
+
         if (!allowInteraction(event.getEntity(), event.getItem())) {
             event.setCanceled(true);
         }
@@ -212,6 +256,11 @@ public class CustomDurabilityHandler {
 
     private static boolean isBroken(ItemStack stack) {
         return DurabilityHelper.usesCustomDurability(stack) && DurabilityHelper.isCustomBroken(stack);
+    }
+
+    private static boolean isDecorative(ItemStack stack) {
+        return stack != null && !stack.isEmpty()
+                && ItemAttributeDataManager.getInstance().isDecorative(stack.getItem());
     }
 
     private static void consumeTriggeredDurability(Player player, InteractionHand hand, String trigger) {

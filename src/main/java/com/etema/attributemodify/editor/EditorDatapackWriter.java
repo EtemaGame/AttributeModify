@@ -23,6 +23,7 @@ public final class EditorDatapackWriter {
     public static final String DATAPACK_NAME = "AttributeModify_Editor";
     public static final String EDITOR_NAMESPACE = "attributemodify_editor";
     public static final String RULE_FILE_NAME = "editor_rules.json";
+    private static final int DATAPACK_PACK_FORMAT = 15;
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 
@@ -60,16 +61,21 @@ public final class EditorDatapackWriter {
 
     private static void writePackMeta(Path packMetaPath) throws IOException {
         Files.createDirectories(packMetaPath.getParent());
-        if (Files.exists(packMetaPath)) {
-            return;
-        }
-
         JsonObject root = new JsonObject();
         JsonObject pack = new JsonObject();
-        pack.addProperty("pack_format", 15);
+        pack.addProperty("pack_format", DATAPACK_PACK_FORMAT);
         pack.addProperty("description", "AttributeModify generated editor rules");
         root.add("pack", pack);
-        atomicWrite(packMetaPath, GSON.toJson(root));
+
+        String content = GSON.toJson(root);
+        if (Files.exists(packMetaPath)) {
+            String existing = Files.readString(packMetaPath, StandardCharsets.UTF_8);
+            if (existing.equals(content)) {
+                return;
+            }
+        }
+
+        atomicWrite(packMetaPath, content);
     }
 
     private static void atomicWrite(Path target, String content) throws IOException {

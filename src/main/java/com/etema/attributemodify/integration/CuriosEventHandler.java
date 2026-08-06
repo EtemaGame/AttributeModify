@@ -54,7 +54,7 @@ public class CuriosEventHandler {
 
                 switch (entry.action()) {
                     case REMOVE -> {
-                        event.removeAttribute(attribute);
+                        removeAttribute(event, attribute, entry.targetOperation());
                         // Log removed to reduce spam
                     }
                     case MODIFY -> {
@@ -104,6 +104,15 @@ public class CuriosEventHandler {
 
         } catch (Exception e) {
             AttributeModify.LOGGER.error("Error processing Curios event: {}", e.getMessage());
+        }
+    }
+
+    private static void removeAttribute(CurioAttributeModifierEvent event, Attribute attribute,
+            AttributeModifier.Operation targetOperation) {
+        for (AttributeModifier modifier : java.util.List.copyOf(event.getModifiers().get(attribute))) {
+            if (ItemAttributeDataManager.removalOperationMatches(targetOperation, modifier.getOperation())) {
+                event.removeModifier(attribute, modifier);
+            }
         }
     }
 

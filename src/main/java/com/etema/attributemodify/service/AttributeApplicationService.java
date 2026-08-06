@@ -74,20 +74,8 @@ public class AttributeApplicationService {
             return;
         }
 
-        for (var entry : List.copyOf(event.getOriginalModifiers().asMap().entrySet())) {
-            Attribute attribute = entry.getKey();
-            Collection<AttributeModifier> vanillaModifiers = event.getItemStack().getItem()
-                    .getDefaultAttributeModifiers(event.getSlotType()).get(attribute);
-            if (vanillaModifiers == null || vanillaModifiers.isEmpty()) {
-                continue;
-            }
-
-            for (AttributeModifier original : List.copyOf(entry.getValue())) {
-                if (containsEquivalentModifier(vanillaModifiers, original)) {
-                    event.removeModifier(attribute, original);
-                }
-            }
-        }
+        // Decorative means inert, including modifiers supplied by another event handler.
+        event.clearModifiers();
     }
 
     static boolean hasExternalModifiersForAttribute(ItemAttributeModifierEvent event, Attribute attribute) {

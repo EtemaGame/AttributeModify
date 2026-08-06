@@ -1,0 +1,10 @@
+{
+  "attributemodify.tooltip.custom_durability": "Durabilidad personalizada",
+  "attributemodify.tooltip.durability_separator": " / ",
+  "item.modifiers.mainhand": "En la mano principal:",
+  "item.modifiers.offhand": "En la mano secundaria:",
+  "item.modifiers.feet": "En los pies:",
+  "item.modifiers.legs": "En las piernas:",
+  "item.modifiers.chest": "En el cuerpo:",
+  "item.modifiers.head": "En la cabeza:"
+}

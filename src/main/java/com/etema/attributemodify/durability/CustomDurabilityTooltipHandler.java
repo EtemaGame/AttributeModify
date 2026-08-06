@@ -15,6 +15,10 @@ public class CustomDurabilityTooltipHandler {
     @SubscribeEvent
     public static void onItemTooltip(ItemTooltipEvent event) {
         ItemStack stack = event.getItemStack();
+        if (ItemAttributeDataManager.getInstance().isDecorative(stack.getItem())) {
+            return;
+        }
+
         DurabilityRule rule = ItemAttributeDataManager.getInstance().getDurabilityRule(stack.getItem());
 
         if (rule == null || rule.mode() != DurabilityMode.CUSTOM) {

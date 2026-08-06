@@ -141,6 +141,8 @@ If the item can be auto-detected, this is usually all you need.
 - `set`: set the final result more directly
 - `remove`: remove the attribute from that slot
 
+For `remove`, `amount` is not required. If you include `operation`, only modifiers using that operation are removed; without `operation`, every modifier for that attribute is removed, preserving the original behavior.
+
 ### Operations
 
 - `add_value`
@@ -237,6 +239,10 @@ Supported standard slots:
 - `body`
 
 Curios and Accessories can also be used if those integrations are installed and enabled.
+
+Automatic Curios detection reads every concrete `curios:<slot>` item tag and applies the shorthand rule to each matching slot. Aggregate tags such as `curios:all` and `curios:curio` are ignored because they do not identify one concrete slot.
+
+When an item is equipped in the universal `curio` or `accessory` slot, rules declared for its configured specific slots are also considered. Explicit rules for the universal slot run first, followed by specific slots in a stable order.
 
 ## 7. Matching conditions
 
@@ -425,7 +431,7 @@ Quality rules let you roll values based on weights.
 
 ## 11. Decorative items
 
-If you only want an item to count as decorative, mark it like this:
+If you only want an item to behave like a purely decorative item, mark it like this:
 
 ```json
 {
@@ -434,6 +440,14 @@ If you only want an item to count as decorative, mark it like this:
   }
 }
 ```
+
+Decorative items are treated as ornamental only:
+
+- their custom attribute processing is skipped
+- the tooltip is reduced to the item name and the minimum extra lines the client still adds
+- attacks, mining, item use, and entity or block interactions are blocked
+- active status effects are cleared while the item is equipped in a hand or armor slot
+- they are still recognized by the sync system, so client and server stay in agreement
 
 ## 12. A few things to keep in mind
 
